@@ -104,29 +104,50 @@ if [ "$SKIP_DEPS" = false ]; then
         fi
     fi
     
-    # Verify Poetry works and configure Python if needed
-    if ! poetry --version &> /dev/null; then
-        echo -e "${YELLOW}Warning: Poetry may have issues. Attempting to fix...${NC}"
-        # Try to use system Python if pyenv is causing issues
-        if command -v /usr/bin/python3 &> /dev/null; then
-            echo -e "${BLUE}Configuring Poetry to use system Python: /usr/bin/python3${NC}"
-            poetry env use /usr/bin/python3 2>/dev/null || true
-        elif command -v python3 &> /dev/null; then
-            PYTHON_PATH=$(which python3)
-            echo -e "${BLUE}Configuring Poetry to use: ${PYTHON_PATH}${NC}"
-            poetry env use "$PYTHON_PATH" 2>/dev/null || true
-        fi
+    # Force Poetry to use system Python (bypass pyenv issues)
+    # Find system Python (not pyenv shim)
+    SYSTEM_PYTHON=""
+    if [ -f "/usr/bin/python3" ]; then
+        SYSTEM_PYTHON="/usr/bin/python3"
+    elif [ -f "/usr/local/bin/python3" ]; then
+        SYSTEM_PYTHON="/usr/local/bin/python3"
+    else
+        # Try to find a non-pyenv Python
+        for py_path in $(which -a python3); do
+            if [[ ! "$py_path" =~ pyenv ]]; then
+                SYSTEM_PYTHON="$py_path"
+                break
+            fi
+        done
+    fi
+    
+    if [ -n "$SYSTEM_PYTHON" ]; then
+        echo -e "${BLUE}Configuring Poetry to use system Python: ${SYSTEM_PYTHON}${NC}"
+        # Temporarily bypass pyenv for Poetry
+        export PYENV_ROOT=""
+        export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v pyenv | tr '\n' ':')
+        poetry env use "$SYSTEM_PYTHON" 2>/dev/null || {
+            echo -e "${YELLOW}Note: Poetry env configuration may have warnings, continuing...${NC}"
+        }
     fi
     
     # Try to install dependencies
+    # Temporarily bypass pyenv to avoid shim issues
+    OLD_PATH="$PATH"
+    export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v pyenv | tr '\n' ':')
+    export PYENV_ROOT=""
+    
     if ! poetry install 2>&1; then
+        export PATH="$OLD_PATH"
         echo ""
         echo -e "${RED}Error: Failed to install dependencies with Poetry${NC}"
         echo -e "${YELLOW}Troubleshooting steps:${NC}"
-        echo "  1. Try: poetry env use python3"
-        echo "  2. Or: poetry env use $(which python3)"
-        echo "  3. Or: pyenv rehash (if using pyenv)"
-        echo "  4. Or run with --skip-deps and install manually: poetry install"
+        if [ -n "$SYSTEM_PYTHON" ]; then
+            echo "  1. Try manually: poetry env use $SYSTEM_PYTHON"
+        fi
+        echo "  2. Or: poetry env use /usr/bin/python3"
+        echo "  3. Or run with --skip-deps and install manually"
+        echo "  4. Or reinstall Poetry: brew install poetry"
         echo ""
         read -p "Continue anyway? (y/N) " -n 1 -r
         echo
