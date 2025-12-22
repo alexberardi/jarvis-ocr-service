@@ -14,6 +14,8 @@ NC='\033[0m' # No Color
 # Parse arguments
 SKIP_DEPS=false
 RESTART_WORKER=false
+START_SERVICES=false
+ENABLE_REDIS=false
 for arg in "$@"; do
     case $arg in
         --skip-deps)
@@ -22,6 +24,14 @@ for arg in "$@"; do
             ;;
         --restart-worker)
             RESTART_WORKER=true
+            shift
+            ;;
+        --start-services)
+            START_SERVICES=true
+            shift
+            ;;
+        --enable-redis-queue)
+            ENABLE_REDIS=true
             shift
             ;;
         *)
@@ -182,35 +192,80 @@ else
     echo -e "${BLUE}No running service found${NC}"
 fi
 
-# Find and stop worker processes if requested
-if [ "$RESTART_WORKER" = true ]; then
-    WORKER_PIDS=$(pgrep -f "python.*worker.py" || true)
-    if [ -n "$WORKER_PIDS" ]; then
-        echo -e "${BLUE}Found running worker (PIDs: ${WORKER_PIDS})${NC}"
-        echo -e "${YELLOW}Stopping worker...${NC}"
-        echo "$WORKER_PIDS" | xargs kill -TERM || true
-        sleep 2
-        # Force kill if still running
-        REMAINING=$(pgrep -f "python.*worker.py" || true)
-        if [ -n "$REMAINING" ]; then
-            echo -e "${YELLOW}Force killing remaining worker processes...${NC}"
-            echo "$REMAINING" | xargs kill -9 || true
-        fi
-        echo -e "${GREEN}✓ Worker stopped${NC}"
-    else
-        echo -e "${BLUE}No running worker found${NC}"
+# Find and stop worker processes
+WORKER_PIDS=$(pgrep -f "python.*worker.py" || true)
+if [ -n "$WORKER_PIDS" ]; then
+    echo -e "${BLUE}Found running worker (PIDs: ${WORKER_PIDS})${NC}"
+    echo -e "${YELLOW}Stopping worker...${NC}"
+    echo "$WORKER_PIDS" | xargs kill -TERM || true
+    sleep 2
+    # Force kill if still running
+    REMAINING=$(pgrep -f "python.*worker.py" || true)
+    if [ -n "$REMAINING" ]; then
+        echo -e "${YELLOW}Force killing remaining worker processes...${NC}"
+        echo "$REMAINING" | xargs kill -9 || true
     fi
+    echo -e "${GREEN}✓ Worker stopped${NC}"
+else
+    echo -e "${BLUE}No running worker found${NC}"
+fi
+
+# Start services if requested
+if [ "$START_SERVICES" = true ]; then
+    echo ""
+    echo -e "${YELLOW}Starting services in background...${NC}"
+    
+    # Get project directory
+    PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    # Create logs directory
+    mkdir -p "$PROJECT_DIR/logs"
+    
+    # Start main service
+    echo -e "${BLUE}Starting OCR service...${NC}"
+    if [ "$ENABLE_REDIS" = true ]; then
+        nohup "$PROJECT_DIR/run.sh" --enable-redis-queue > "$PROJECT_DIR/logs/service.log" 2>&1 &
+        SERVICE_PID=$!
+    else
+        nohup "$PROJECT_DIR/run.sh" > "$PROJECT_DIR/logs/service.log" 2>&1 &
+        SERVICE_PID=$!
+    fi
+    echo "$SERVICE_PID" > "$PROJECT_DIR/logs/service.pid"
+    echo -e "${GREEN}✓ Service started (PID: $SERVICE_PID)${NC}"
+    
+    # Wait a moment for service to start
+    sleep 2
+    
+    # Start worker
+    echo -e "${BLUE}Starting OCR worker...${NC}"
+    nohup "$PROJECT_DIR/run-worker.sh" > "$PROJECT_DIR/logs/worker.log" 2>&1 &
+    WORKER_PID=$!
+    echo "$WORKER_PID" > "$PROJECT_DIR/logs/worker.pid"
+    echo -e "${GREEN}✓ Worker started (PID: $WORKER_PID)${NC}"
+    
+    echo ""
+    echo -e "${GREEN}Services running in background${NC}"
+    echo -e "${BLUE}Logs:${NC}"
+    echo "  Service: $PROJECT_DIR/logs/service.log"
+    echo "  Worker:  $PROJECT_DIR/logs/worker.log"
+    echo ""
+    echo -e "${BLUE}PIDs:${NC}"
+    echo "  Service: $SERVICE_PID (saved to logs/service.pid)"
+    echo "  Worker:  $WORKER_PID (saved to logs/worker.pid)"
 fi
 
 echo ""
-echo -e "${GREEN}Deployment complete!${NC}"
-echo ""
-echo -e "${BLUE}Next steps:${NC}"
-echo "  1. Start the service: ./run.sh [--enable-redis-queue]"
-if [ "$RESTART_WORKER" = true ]; then
-    echo "  2. Start the worker: ./run-worker.sh"
+if [ "$START_SERVICES" != true ]; then
+    echo -e "${GREEN}Deployment complete!${NC}"
+    echo ""
+    echo -e "${BLUE}Next steps:${NC}"
+    echo "  Start services: ./deploy.sh --start-services [--enable-redis-queue]"
+    echo "  Or manually:"
+    echo "    ./run.sh [--enable-redis-queue]"
+    echo "    ./run-worker.sh"
+    echo ""
+    echo -e "${BLUE}For automatic startup on boot, see DEPLOYMENT.md${NC}"
+else
+    echo -e "${GREEN}Deployment complete and services started!${NC}"
 fi
-echo ""
-echo -e "${YELLOW}Note: The service and worker are not automatically started.${NC}"
-echo -e "${YELLOW}Start them manually or use a process manager (e.g., launchd, supervisor, pm2).${NC}"
 

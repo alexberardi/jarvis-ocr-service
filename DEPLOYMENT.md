@@ -13,12 +13,17 @@ ssh user@your-macos-server
 # 2. Navigate to project directory
 cd /path/to/jarvis-ocr-server
 
-# 3. Run deployment script
-./deploy.sh
+# 3. Run deployment script (with automatic service startup)
+./deploy.sh --start-services --enable-redis-queue
 
-# 4. Restart services
-./run.sh --enable-redis-queue        # In one terminal/screen
-./run-worker.sh                      # In another terminal/screen
+# Services will start automatically in the background
+# Logs are in: logs/service.log and logs/worker.log
+```
+
+**Or deploy without starting services:**
+```bash
+./deploy.sh
+# Then start manually or use launchd (see below)
 ```
 
 ## Deployment Script
@@ -27,14 +32,21 @@ The `deploy.sh` script automates:
 - ✅ Git pull (latest code)
 - ✅ Poetry dependency updates
 - ✅ Graceful service shutdown
-- ✅ Optional worker shutdown
+- ✅ Optional service startup in background
 
 **Usage:**
 ```bash
-./deploy.sh                    # Full deployment
-./deploy.sh --skip-deps        # Skip Poetry install (faster)
-./deploy.sh --restart-worker   # Also restart worker
+./deploy.sh                              # Deploy only (don't start services)
+./deploy.sh --start-services             # Deploy and start services in background
+./deploy.sh --start-services --enable-redis-queue  # Include Redis queue
+./deploy.sh --skip-deps                 # Skip Poetry install (faster)
 ```
+
+**When using `--start-services`:**
+- Services run in background (won't lock terminal)
+- Logs written to `logs/service.log` and `logs/worker.log`
+- PIDs saved to `logs/service.pid` and `logs/worker.pid`
+- Services can be stopped with: `kill $(cat logs/service.pid)`
 
 ## Process Management Options
 
@@ -63,46 +75,50 @@ screen -r ocr-worker
 
 ### Option 2: Launchd (macOS Native) - Recommended for Production
 
-Create launchd plist files for automatic startup and management:
+**Automatic Setup (Recommended):**
 
-**`~/Library/LaunchAgents/com.jarvis.ocr.service.plist`:**
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.jarvis.ocr.service</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/poetry</string>
-        <string>run</string>
-        <string>python</string>
-        <string>/path/to/jarvis-ocr-server/main.py</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/path/to/jarvis-ocr-server</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/path/to/jarvis-ocr-server/logs/service.log</string>
-    <key>StandardErrorPath</key>
-    <string>/path/to/jarvis-ocr-server/logs/service.error.log</string>
-</dict>
-</plist>
+Use the provided setup script to install launchd services:
+
+```bash
+./setup-launchd.sh
 ```
 
-**Load the service:**
+This script will:
+- Update plist files with your project path
+- Install services to `~/Library/LaunchAgents/`
+- Load and start services automatically
+- Configure services to start on boot
+
+**Manual Setup:**
+
+If you prefer to set up manually:
+
+1. Edit the plist files (`com.jarvis.ocr.service.plist` and `com.jarvis.ocr.worker.plist`) to update the path
+2. Copy to LaunchAgents:
+   ```bash
+   cp com.jarvis.ocr.service.plist ~/Library/LaunchAgents/
+   cp com.jarvis.ocr.worker.plist ~/Library/LaunchAgents/
+   ```
+3. Load services:
+   ```bash
+   launchctl load ~/Library/LaunchAgents/com.jarvis.ocr.service.plist
+   launchctl load ~/Library/LaunchAgents/com.jarvis.ocr.worker.plist
+   ```
+
+**Useful launchd commands:**
 ```bash
-launchctl load ~/Library/LaunchAgents/com.jarvis.ocr.service.plist
+# Check status
+launchctl list | grep jarvis
+
+# Start/stop services
 launchctl start com.jarvis.ocr.service
+launchctl stop com.jarvis.ocr.service
+launchctl start com.jarvis.ocr.worker
+launchctl stop com.jarvis.ocr.worker
+
+# Unload services (to disable)
+launchctl unload ~/Library/LaunchAgents/com.jarvis.ocr.service.plist
+launchctl unload ~/Library/LaunchAgents/com.jarvis.ocr.worker.plist
 ```
 
 ### Option 3: PM2 (Process Manager)

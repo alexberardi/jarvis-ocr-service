@@ -45,6 +45,7 @@ ENV/
 # Logs
 *.log
 logs/
+*.pid
 
 # Redis data
 redis-data/
