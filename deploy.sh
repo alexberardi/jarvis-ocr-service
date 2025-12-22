@@ -68,8 +68,36 @@ if [ "$SKIP_DEPS" = false ]; then
         echo -e "${RED}Error: Poetry is not installed${NC}"
         exit 1
     fi
-    poetry install
-    echo -e "${GREEN}✓ Dependencies updated${NC}"
+    
+    # Check if Poetry can find Python - try to use system Python if pyenv is having issues
+    if ! poetry --version &> /dev/null; then
+        echo -e "${YELLOW}Warning: Poetry may have Python path issues. Attempting to configure...${NC}"
+        # Try to use system Python directly
+        if command -v python3 &> /dev/null; then
+            PYTHON_PATH=$(which python3)
+            echo -e "${BLUE}Setting Poetry to use: ${PYTHON_PATH}${NC}"
+            poetry env use "$PYTHON_PATH" 2>/dev/null || true
+        fi
+    fi
+    
+    # Try to install dependencies
+    if ! poetry install 2>&1; then
+        echo ""
+        echo -e "${RED}Error: Failed to install dependencies with Poetry${NC}"
+        echo -e "${YELLOW}Troubleshooting steps:${NC}"
+        echo "  1. Try: poetry env use python3"
+        echo "  2. Or: poetry env use $(which python3)"
+        echo "  3. Or: pyenv rehash (if using pyenv)"
+        echo "  4. Or run with --skip-deps and install manually: poetry install"
+        echo ""
+        read -p "Continue anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}✓ Dependencies updated${NC}"
+    fi
 else
     echo -e "${YELLOW}Skipping dependency installation${NC}"
 fi
