@@ -33,6 +33,9 @@ done
 echo -e "${GREEN}Jarvis OCR Service - Deployment${NC}"
 echo ""
 
+# Ensure Poetry is in PATH (for official installer)
+export PATH="$HOME/.local/bin:$PATH"
+
 # Check if we're in a git repository
 if [ ! -d ".git" ]; then
     echo -e "${RED}Error: Not a git repository${NC}"
@@ -64,18 +67,53 @@ echo -e "${GREEN}✓ Git pull successful${NC}"
 # Install/update dependencies
 if [ "$SKIP_DEPS" = false ]; then
     echo -e "${YELLOW}Installing/updating dependencies with Poetry...${NC}"
+    
+    # Check if Poetry is installed
     if ! command -v poetry &> /dev/null; then
-        echo -e "${RED}Error: Poetry is not installed${NC}"
-        exit 1
+        echo -e "${YELLOW}Poetry is not installed. Installing Poetry...${NC}"
+        
+        # Try Homebrew first (if available)
+        if command -v brew &> /dev/null; then
+            echo -e "${BLUE}Installing Poetry via Homebrew...${NC}"
+            if brew install poetry; then
+                echo -e "${GREEN}✓ Poetry installed via Homebrew${NC}"
+            else
+                echo -e "${YELLOW}Homebrew installation failed, trying official installer...${NC}"
+                # Fall through to official installer
+            fi
+        fi
+        
+        # If Homebrew didn't work or isn't available, use official installer
+        if ! command -v poetry &> /dev/null; then
+            echo -e "${BLUE}Installing Poetry via official installer...${NC}"
+            curl -sSL https://install.python-poetry.org | python3 -
+            
+            # Add Poetry to PATH for current session
+            export PATH="$HOME/.local/bin:$PATH"
+            
+            # Verify installation
+            if ! command -v poetry &> /dev/null; then
+                echo -e "${RED}Error: Poetry installation failed${NC}"
+                echo -e "${YELLOW}Please install Poetry manually:${NC}"
+                echo "  brew install poetry"
+                echo "  OR"
+                echo "  curl -sSL https://install.python-poetry.org | python3 -"
+                exit 1
+            fi
+            echo -e "${GREEN}✓ Poetry installed${NC}"
+        fi
     fi
     
-    # Check if Poetry can find Python - try to use system Python if pyenv is having issues
+    # Verify Poetry works and configure Python if needed
     if ! poetry --version &> /dev/null; then
-        echo -e "${YELLOW}Warning: Poetry may have Python path issues. Attempting to configure...${NC}"
-        # Try to use system Python directly
-        if command -v python3 &> /dev/null; then
+        echo -e "${YELLOW}Warning: Poetry may have issues. Attempting to fix...${NC}"
+        # Try to use system Python if pyenv is causing issues
+        if command -v /usr/bin/python3 &> /dev/null; then
+            echo -e "${BLUE}Configuring Poetry to use system Python: /usr/bin/python3${NC}"
+            poetry env use /usr/bin/python3 2>/dev/null || true
+        elif command -v python3 &> /dev/null; then
             PYTHON_PATH=$(which python3)
-            echo -e "${BLUE}Setting Poetry to use: ${PYTHON_PATH}${NC}"
+            echo -e "${BLUE}Configuring Poetry to use: ${PYTHON_PATH}${NC}"
             poetry env use "$PYTHON_PATH" 2>/dev/null || true
         fi
     fi
