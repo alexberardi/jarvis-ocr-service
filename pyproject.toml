@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "jarvis-ocr-server"
+version = "1.0.0"
+description = "OCR microservice with pluggable backends"
+authors = ["Jarvis Automation"]
+readme = "README.md"
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.104.1"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+pydantic = "^2.5.0"
+python-multipart = "^0.0.6"
+pillow = "^10.1.0"
+pytesseract = "^0.3.10"
+numpy = "^1.24.3"
+httpx = "^0.25.2"
+python-dotenv = "^1.0.0"
+redis = "^5.0.1"
+rq = "^1.15.1"  # Redis Queue for job processing
+boto3 = "^1.34.0"  # Required for S3/minio support
+requests = "^2.31.0"  # Required for HTTPS URL support
+
+[tool.poetry.group.optional.dependencies]
+easyocr = "^1.7.0"
+paddlepaddle = "^2.5.2"
+paddleocr = "^2.7.0.3"
+pyobjc-framework-Vision = {version = "^10.1", markers = "sys_platform == 'darwin'"}
+
+[tool.poetry.scripts]
+jarvis-ocr = "main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+

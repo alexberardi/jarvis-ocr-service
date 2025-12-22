@@ -1,0 +1,19 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+pillow==10.1.0
+pytesseract==0.3.10
+numpy==1.24.3
+httpx==0.25.2
+python-dotenv==1.0.0
+redis==5.0.1
+
+# Optional providers (install as needed)
+# easyocr==1.7.0
+# paddlepaddle==2.5.2
+# paddleocr==2.7.0.3
+
+# For Apple Vision (macOS only)
+# pyobjc-framework-Vision==10.1
+

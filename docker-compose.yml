@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  ocr-server:
+    build: .
+    ports:
+      - "${OCR_PORT:-5009}:5009"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+    volumes:
+      - .:/app
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 5009
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ./redis-data:/data
+    command: redis-server --appendonly yes
+
