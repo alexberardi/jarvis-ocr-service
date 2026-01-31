@@ -1,7 +1,25 @@
 #!/bin/bash
-# Simple script to run Jarvis OCR Service natively using Poetry
+# Development server
+# Usage: ./run.sh [--docker] [--enable-redis-queue]
 
-set -e  # Exit on error
+set -e
+cd "$(dirname "$0")"
+
+# Check for docker mode
+if [[ "$1" == "--docker" ]]; then
+    # Docker development mode
+    BUILD_FLAGS=""
+    if [[ "$2" == "--rebuild" ]]; then
+        docker compose --env-file .env -f docker-compose.dev.yaml build --no-cache
+        BUILD_FLAGS="--build"
+    elif [[ "$2" == "--build" ]]; then
+        BUILD_FLAGS="--build"
+    fi
+    docker compose --env-file .env -f docker-compose.dev.yaml up $BUILD_FLAGS
+    exit 0
+fi
+
+# Local development mode with Poetry
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -24,7 +42,7 @@ for arg in "$@"; do
     esac
 done
 
-echo -e "${GREEN}Jarvis OCR Service - Native Runner${NC}"
+echo -e "${GREEN}Jarvis OCR Service - Development Server${NC}"
 echo ""
 
 # Check if Poetry is installed
@@ -47,7 +65,7 @@ if [ "$ENABLE_REDIS" = true ]; then
         echo -e "${RED}Error: Docker is required to run Redis queue. Please install Docker.${NC}"
         exit 1
     fi
-    
+
     # Check if Redis is already running
     REDIS_PORT=${REDIS_PORT:-6379}
     if docker ps | grep -q "jarvis-ocr-redis"; then
@@ -59,7 +77,7 @@ if [ "$ENABLE_REDIS" = true ]; then
             -p "${REDIS_PORT}:6379" \
             redis:7-alpine \
             redis-server --appendonly yes
-        
+
         # Wait a moment for Redis to start
         sleep 2
         echo -e "${GREEN}Redis started on port ${REDIS_PORT}${NC}"
@@ -83,4 +101,3 @@ fi
 echo -e "${GREEN}Starting Jarvis OCR Service...${NC}"
 echo ""
 poetry run python main.py
-

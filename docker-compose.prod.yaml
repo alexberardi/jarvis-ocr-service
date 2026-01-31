@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  ocr-server:
+    build: .
+    ports:
+      - "${OCR_PORT:-5009}:5009"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 5009
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  redis-data:
