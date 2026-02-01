@@ -1,14 +1,16 @@
 """LLM Proxy OCR provider implementation (Vision and Cloud models)."""
 
-import io
-import time
-import base64
-import logging
 import asyncio
+import base64
+import io
+import logging
+import time
 from typing import List, Optional, Tuple
-from PIL import Image
-import httpx
 
+import httpx
+from PIL import Image
+
+from app import service_config
 from app.config import config
 from app.providers.base import OCRProvider, OCRResult, TextBlock
 
@@ -59,15 +61,19 @@ class LLMProxyProvider(OCRProvider):
     def __init__(self, model_name: str):
         """
         Initialize LLM Proxy provider.
-        
+
         Args:
             model_name: Model name to use ("vision" or "cloud")
         """
         self.model_name = model_name
-        self.base_url = config.JARVIS_LLM_PROXY_URL
         self.app_id = config.JARVIS_APP_ID
         self.app_key = config.JARVIS_APP_KEY
         self.timeout = 60.0  # 60 second timeout for LLM calls
+
+    @property
+    def base_url(self) -> str:
+        """Get LLM Proxy URL from service discovery (read dynamically)."""
+        return service_config.get_llm_proxy_url()
     
     @property
     def name(self) -> str:

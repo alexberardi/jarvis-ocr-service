@@ -4,11 +4,13 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from typing import Optional
+
+import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
-import uvicorn
 
 # Note: .env is loaded in app.config before config is initialized
+from app import service_config
 from app.config import config
 from app.models import (
     OCRRequest, OCRResponse, OCRBatchRequest, OCRBatchResponse,
@@ -40,7 +42,13 @@ async def lifespan(app: FastAPI):
     
     # Startup
     logger.info("Starting Jarvis OCR Service...")
-    
+
+    # Initialize service discovery
+    if service_config.init():
+        logger.info("Service discovery initialized")
+    else:
+        logger.info("Using environment variables for service URLs")
+
     # Validate configuration
     try:
         config.validate()

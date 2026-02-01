@@ -2,9 +2,10 @@
 
 import logging
 from typing import Optional, Dict, Any
+
 import httpx
 
-from app.config import config
+from app import service_config
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,8 @@ class AuthClient:
     
     @property
     def base_url(self) -> str:
-        """Get base URL from config (read dynamically)."""
-        return config.JARVIS_AUTH_BASE_URL
+        """Get base URL from service discovery (read dynamically)."""
+        return service_config.get_auth_url()
     
     async def verify_app_credentials(
         self,
