@@ -8,6 +8,10 @@ numpy==1.24.3
 httpx==0.25.2
 python-dotenv==1.0.0
 redis==5.0.1
+sqlalchemy>=2.0.23
+alembic>=1.12.1
+psycopg2-binary>=2.9.9
+jarvis-settings-client @ git+https://github.com/alexberardi/jarvis-settings-client.git@main
 
 # Optional providers (install as needed)
 # easyocr==1.7.0
