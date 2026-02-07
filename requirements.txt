@@ -13,6 +13,10 @@ alembic>=1.12.1
 psycopg2-binary>=2.9.9
 jarvis-settings-client @ git+https://github.com/alexberardi/jarvis-settings-client.git@main
 
+boto3>=1.28.0
+requests>=2.31.0
+pytest-httpx>=0.28.0
+
 # Optional providers (install as needed)
 # easyocr==1.7.0
 # paddlepaddle==2.5.2

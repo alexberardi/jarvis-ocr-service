@@ -11,6 +11,8 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - JARVIS_CONFIG_URL=http://host.docker.internal:8020
       - JARVIS_CONFIG_URL_STYLE=dockerized
+    extra_hosts:
+      - "${DOCKER_HOST_ALIAS:-host.docker.internal}:host-gateway"
     volumes:
       - .:/app
       - ../jarvis-config-client:/jarvis-config-client:ro

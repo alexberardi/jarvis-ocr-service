@@ -90,7 +90,6 @@ async def verify_app_auth(
     except httpx.RequestError as e:
         # Auth service is unavailable
         logger.error(f"Auth service unavailable: {e}")
-        print()
         raise HTTPException(
             status_code=503,
             detail={
