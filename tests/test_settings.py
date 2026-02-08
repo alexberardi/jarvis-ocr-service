@@ -18,7 +18,6 @@ from jarvis_settings_client.types import SettingValue
 
 from app.services.settings_definitions import SETTINGS_DEFINITIONS
 from app.services.settings_service import (
-    OCRSettingsService,
     get_settings_service,
     reset_settings_service,
 )
@@ -59,63 +58,13 @@ class TestSettingsDefinitions:
         assert "ocr.enabled_tiers" in keys
 
 
-class TestOCRSettingsService:
-    """Tests for OCRSettingsService helper methods."""
-
-    @pytest.fixture
-    def service(self):
-        """Create a service instance for testing."""
-        return OCRSettingsService(
-            definitions=SETTINGS_DEFINITIONS,
-            get_db_session=lambda: None,
-            setting_model=None,
-        )
-
-    def test_get_provider_config(self, service):
-        """Test get_provider_config method."""
-        with patch.dict(os.environ, {
-            "OCR_ENABLE_EASYOCR": "true",
-            "OCR_ENABLE_PADDLEOCR": "false",
-            "OCR_ENABLE_APPLE_VISION": "true",
-        }):
-            config = service.get_provider_config()
-            assert config["tesseract"] is True  # Always enabled
-            assert config["easyocr"] is True
-            assert config["paddleocr"] is False
-            assert config["apple_vision"] is True
-
-    def test_get_processing_config(self, service):
-        """Test get_processing_config method."""
-        with patch.dict(os.environ, {
-            "OCR_MAX_TEXT_BYTES": "100000",
-            "OCR_MIN_VALID_CHARS": "5",
-            "OCR_LANGUAGE_DEFAULT": "de",
-            "OCR_MAX_ATTEMPTS": "5",
-            "OCR_VALIDATION_MODEL": "advanced",
-        }):
-            config = service.get_processing_config()
-            assert config["max_text_bytes"] == 100000
-            assert config["min_valid_chars"] == 5
-            assert config["language_default"] == "de"
-            assert config["max_attempts"] == 5
-            assert config["validation_model"] == "advanced"
-
-    def test_get_enabled_tiers(self, service):
-        """Test get_enabled_tiers method."""
-        with patch.dict(os.environ, {
-            "OCR_ENABLED_TIERS": "tesseract,easyocr,llm_cloud",
-        }):
-            tiers = service.get_enabled_tiers()
-            assert tiers == ["tesseract", "easyocr", "llm_cloud"]
-
-
 class TestSettingsServiceCache:
     """Tests for SettingsService caching behavior."""
 
     @pytest.fixture
     def service(self):
         """Create a service instance for testing."""
-        return OCRSettingsService(
+        return SettingsService(
             definitions=SETTINGS_DEFINITIONS,
             get_db_session=lambda: None,
             setting_model=None,
@@ -193,7 +142,7 @@ class TestSettingsServiceEnvFallback:
     @pytest.fixture
     def service(self):
         """Create a service instance for testing."""
-        return OCRSettingsService(
+        return SettingsService(
             definitions=SETTINGS_DEFINITIONS,
             get_db_session=lambda: None,
             setting_model=None,
@@ -224,7 +173,7 @@ class TestSettingsServiceTypedGetters:
     @pytest.fixture
     def service(self):
         """Create a service instance for testing."""
-        return OCRSettingsService(
+        return SettingsService(
             definitions=SETTINGS_DEFINITIONS,
             get_db_session=lambda: None,
             setting_model=None,
@@ -258,7 +207,7 @@ class TestSettingsServiceListMethods:
     @pytest.fixture
     def service(self):
         """Create a service instance for testing."""
-        return OCRSettingsService(
+        return SettingsService(
             definitions=SETTINGS_DEFINITIONS,
             get_db_session=lambda: None,
             setting_model=None,
