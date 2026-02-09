@@ -56,6 +56,7 @@ class Config:
     # Redis config
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD")
     
     # Queue processing config (from PRD)
     OCR_MAX_TEXT_BYTES: int = int(os.getenv("OCR_MAX_TEXT_BYTES", "51200"))  # 50 KB

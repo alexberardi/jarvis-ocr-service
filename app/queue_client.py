@@ -47,6 +47,7 @@ class QueueClient:
                 self._client = redis.Redis(
                     host=self.host,
                     port=self.port,
+                    password=config.REDIS_PASSWORD,
                     decode_responses=False,  # Keep binary for compatibility
                     socket_connect_timeout=5,  # Connection timeout
                     socket_timeout=None  # No timeout for blocking operations (brpop can block)
@@ -360,6 +361,7 @@ class QueueClient:
             rq_redis = redis.Redis(
                 host=self.host,
                 port=self.port,
+                password=config.REDIS_PASSWORD,
                 decode_responses=True,  # RQ expects string responses
                 socket_connect_timeout=5,
                 socket_timeout=None
