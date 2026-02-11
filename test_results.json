@@ -1,0 +1,103 @@
+{
+  "timestamp": "2026-02-05T00:26:49.317778",
+  "config": {
+    "redis_host": "10.0.0.122",
+    "redis_port": 6379,
+    "ocr_queue": "jarvis.ocr.jobs",
+    "reply_queue": "jarvis.ocr.test.results"
+  },
+  "tests": {
+    "test1": {
+      "status": "success",
+      "images": [
+        "IMG_4746.jpeg"
+      ],
+      "job_id": "dc956199-bfef-4c2c-affc-13e21a446c24",
+      "results": [
+        {
+          "image": "IMG_4746.jpeg",
+          "index": 0,
+          "is_valid": false,
+          "tier": null,
+          "confidence": null,
+          "text_length": 0,
+          "text": "",
+          "truncated": false,
+          "error": null
+        }
+      ]
+    },
+    "test2": {
+      "status": "success",
+      "images": [
+        "IMG_4750.jpeg"
+      ],
+      "job_id": "ab647beb-3c31-42b0-9632-8470476ea463",
+      "results": [
+        {
+          "image": "IMG_4750.jpeg",
+          "index": 0,
+          "is_valid": false,
+          "tier": null,
+          "confidence": null,
+          "text_length": 0,
+          "text": "",
+          "truncated": false,
+          "error": null
+        }
+      ]
+    },
+    "test3": {
+      "status": "success",
+      "images": [
+        "IMG_4747.jpeg"
+      ],
+      "job_id": "ec2d9f02-c41b-4b0f-ab51-5f1adce7342e",
+      "results": [
+        {
+          "image": "IMG_4747.jpeg",
+          "index": 0,
+          "is_valid": false,
+          "tier": null,
+          "confidence": null,
+          "text_length": 0,
+          "text": "",
+          "truncated": false,
+          "error": null
+        }
+      ]
+    },
+    "test4": {
+      "status": "success",
+      "images": [
+        "IMG_4748.jpeg",
+        "IMG_4749.jpeg"
+      ],
+      "job_id": "ca5ed4b6-bc30-4194-93c6-5c85bb845905",
+      "results": [
+        {
+          "image": "IMG_4748.jpeg",
+          "index": 0,
+          "is_valid": false,
+          "tier": null,
+          "confidence": null,
+          "text_length": 0,
+          "text": "",
+          "truncated": false,
+          "error": null
+        },
+        {
+          "image": "IMG_4749.jpeg",
+          "index": 1,
+          "is_valid": false,
+          "tier": null,
+          "confidence": null,
+          "text_length": 0,
+          "text": "",
+          "truncated": false,
+          "error": null
+        }
+      ]
+    }
+  }
+}

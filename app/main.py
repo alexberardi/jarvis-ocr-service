@@ -1,6 +1,7 @@
 """FastAPI application for Jarvis OCR Service."""
 
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -90,14 +91,16 @@ app = FastAPI(
 )
 
 # Add settings router from shared library
-from jarvis_settings_client import create_settings_router
+from jarvis_settings_client import create_settings_router, create_superuser_auth
 from app.services.settings_service import get_settings_service
 
+_auth_url = os.getenv("JARVIS_AUTH_BASE_URL", "http://localhost:8007")
 _settings_router = create_settings_router(
     service=get_settings_service(),
     auth_dependency=verify_app_auth,
+    write_auth_dependency=create_superuser_auth(_auth_url),
 )
-app.include_router(_settings_router, prefix="/v1/settings", tags=["settings"])
+app.include_router(_settings_router, prefix="/settings", tags=["settings"])
 
 
 @app.get("/health", response_model=HealthResponse)
