@@ -8,7 +8,6 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_HOST=${REDIS_HOST:-redis}
       - JARVIS_CONFIG_URL=http://host.docker.internal:8020
       - JARVIS_CONFIG_URL_STYLE=dockerized
     extra_hosts:
@@ -16,13 +15,5 @@ services:
     volumes:
       - .:/app
       - ../jarvis-config-client:/jarvis-config-client:ro
-    command: bash -c "pip install -e /jarvis-config-client && python -m uvicorn app.main:app --host 0.0.0.0 --port 5009"
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - ./redis-data:/data
-    command: redis-server --appendonly yes
+    command: bash -c "pip install /jarvis-config-client && python -m uvicorn app.main:app --host 0.0.0.0 --port 5009"
 
