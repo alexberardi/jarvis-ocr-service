@@ -22,7 +22,7 @@ class TesseractProvider(OCRProvider):
             # Quick check if tesseract is installed
             pytesseract.get_tesseract_version()
             return True
-        except Exception:
+        except Exception as e:
             return False
     
     def process(

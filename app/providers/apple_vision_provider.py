@@ -31,7 +31,7 @@ class AppleVisionProvider(OCRProvider):
         try:
             # Quick test to ensure Vision framework works
             return True
-        except Exception:
+        except Exception as e:
             return False
     
     def process(

@@ -64,7 +64,7 @@ class AuthClient:
                         data = response.json()
                         # Return the response data (contains app_id, name, etc.)
                         return data
-                    except Exception:
+                    except (ValueError, KeyError):
                         # If response is not JSON, treat as error
                         logger.warning(f"Auth service returned non-JSON response: {response.status_code}")
                         return {
@@ -81,7 +81,7 @@ class AuthClient:
                             "error_code": data.get("error_code", "invalid_app_credentials"),
                             "error_message": data.get("error_message", "Invalid app credentials")
                         }
-                    except Exception:
+                    except (ValueError, KeyError):
                         return {
                             "ok": False,
                             "error_code": "invalid_app_credentials",

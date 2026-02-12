@@ -43,7 +43,7 @@ class EasyOCRProvider(OCRProvider):
         try:
             self._ensure_initialized()
             return True
-        except Exception:
+        except Exception as e:
             return False
     
     def process(

@@ -73,7 +73,7 @@ def _get_url(service_name: str) -> str:
             url = get_service_url(service_name)
             if url:
                 return url
-        except Exception:
+        except (ImportError, AttributeError):
             pass
 
     # Fall back to env var
