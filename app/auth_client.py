@@ -1,7 +1,7 @@
 """Client for validating app credentials with Jarvis Auth."""
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 import httpx
 

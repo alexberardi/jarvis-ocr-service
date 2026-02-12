@@ -3,7 +3,7 @@
 import os
 import logging
 import urllib.parse
-from typing import Tuple, Optional
+from typing import Tuple
 from pathlib import Path
 
 # Required dependencies for S3/minio/HTTPS support

@@ -5,7 +5,6 @@ from typing import Optional
 from fastapi import Header, HTTPException, Request
 import httpx
 
-from app.config import config
 from app.auth_client import auth_client
 from app.auth_cache import get_auth_cache
 

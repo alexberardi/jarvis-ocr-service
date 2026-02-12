@@ -27,7 +27,6 @@ def run_async(coro):
         loop = asyncio.get_running_loop()
         # We're in an async context (FastAPI), but can't use run_until_complete
         # from within a running coroutine. Use a new thread with a new event loop.
-        import concurrent.futures
         import threading
         
         result = None

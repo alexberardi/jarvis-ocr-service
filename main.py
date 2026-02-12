@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Entry point for Jarvis OCR Service."""
 
-import os
 from pathlib import Path
 from dotenv import load_dotenv
 import uvicorn

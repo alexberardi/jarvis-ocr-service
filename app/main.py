@@ -21,7 +21,6 @@ from app.models import (
 from app.provider_manager import ProviderManager
 from app.exceptions import OCRProcessingException, ProviderUnavailableException
 from app.auth import verify_app_auth
-from app.auth_cache import AuthCache
 from app.queue_client import queue_client
 
 # Configure logging

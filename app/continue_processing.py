@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from app.validation_state import PendingValidationState, ValidationStateManager
+from app.validation_state import PendingValidationState
 from app.config import config
 from app.queue_client import queue_client
 from app.text_utils import truncate_text

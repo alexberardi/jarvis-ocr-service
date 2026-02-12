@@ -3,12 +3,10 @@
 
 import asyncio
 import base64
-import json
 import logging
 import sys
 import time
-from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 
 from app.config import config
 from app.provider_manager import ProviderManager
@@ -16,7 +14,7 @@ from app.queue_client import queue_client
 from app.queue_schemas import validate_ocr_request, create_completion_message, SchemaValidationError
 from app.image_resolver import resolve_image, ImageResolverError
 from app.text_utils import normalize_text, truncate_text
-from app.tier_mapping import get_tier_order, provider_to_tier, tier_to_provider
+from app.tier_mapping import get_tier_order, tier_to_provider
 from app.exceptions import OCRProcessingException, ProviderUnavailableException
 
 # Configure logging

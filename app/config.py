@@ -1,9 +1,8 @@
 """Configuration management from environment variables."""
 
 import os
-import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 # Load .env file from project root BEFORE reading environment variables
