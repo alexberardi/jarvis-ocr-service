@@ -52,6 +52,7 @@ class TestSettingsDefinitions:
         keys = [d.key for d in SETTINGS_DEFINITIONS]
         assert "ocr.enable_easyocr" in keys
         assert "ocr.enable_paddleocr" in keys
+        assert "ocr.enable_rapidocr" in keys
         assert "ocr.enable_apple_vision" in keys
         assert "ocr.max_text_bytes" in keys
         assert "ocr.min_valid_chars" in keys

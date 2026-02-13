@@ -27,7 +27,7 @@ class TextBlock(BaseModel):
 class OCRRequest(BaseModel):
     """Request model for OCR endpoint."""
     document_id: Optional[str] = Field(default=None, description="Optional document identifier")
-    provider: Literal["auto", "tesseract", "easyocr", "paddleocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"] = Field(
+    provider: Literal["auto", "tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"] = Field(
         default="auto", description="OCR provider to use"
     )
     image: ImageInput = Field(..., description="Image to process")
@@ -45,7 +45,7 @@ class OCRResponse(BaseModel):
 class OCRBatchRequest(BaseModel):
     """Request model for batch OCR endpoint."""
     document_id: Optional[str] = Field(default=None, description="Optional document identifier")
-    provider: Literal["auto", "tesseract", "easyocr", "paddleocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"] = Field(
+    provider: Literal["auto", "tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"] = Field(
         default="auto", description="OCR provider to use"
     )
     images: List[ImageInput] = Field(..., description="Images to process (1-100 images)", min_length=1, max_length=100)

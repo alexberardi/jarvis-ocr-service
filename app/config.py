@@ -39,6 +39,7 @@ class Config:
     # Provider flags
     OCR_ENABLE_EASYOCR: bool = os.getenv("OCR_ENABLE_EASYOCR", "false").lower() == "true"
     OCR_ENABLE_PADDLEOCR: bool = os.getenv("OCR_ENABLE_PADDLEOCR", "false").lower() == "true"
+    OCR_ENABLE_RAPIDOCR: bool = os.getenv("OCR_ENABLE_RAPIDOCR", "false").lower() == "true"
     OCR_ENABLE_APPLE_VISION: bool = os.getenv("OCR_ENABLE_APPLE_VISION", "false").lower() == "true"
     OCR_ENABLE_LLM_PROXY_VISION: bool = os.getenv("OCR_ENABLE_LLM_PROXY_VISION", "false").lower() == "true"
     OCR_ENABLE_LLM_PROXY_CLOUD: bool = os.getenv("OCR_ENABLE_LLM_PROXY_CLOUD", "false").lower() == "true"
@@ -64,7 +65,7 @@ class Config:
     OCR_MAX_ATTEMPTS: int = int(os.getenv("OCR_MAX_ATTEMPTS", "3"))
     OCR_VALIDATION_MODEL: str = os.getenv("OCR_VALIDATION_MODEL", "lightweight")  # LLM model for validation
     OCR_MIN_CONFIDENCE: Optional[float] = None  # Optional minimum confidence (informational only in v1)
-    OCR_ENABLED_TIERS: str = os.getenv("OCR_ENABLED_TIERS", "tesseract,easyocr,paddleocr,apple_vision,llm_local,llm_cloud")
+    OCR_ENABLED_TIERS: str = os.getenv("OCR_ENABLED_TIERS", "tesseract,easyocr,paddleocr,rapidocr,apple_vision,llm_local,llm_cloud")
     
     # S3/MinIO configuration
     S3_ENDPOINT_URL: Optional[str] = os.getenv("S3_ENDPOINT_URL")  # Optional custom endpoint (for MinIO)
@@ -89,6 +90,7 @@ class Config:
             "tesseract": True,  # Always available
             "easyocr": cls.OCR_ENABLE_EASYOCR,
             "paddleocr": cls.OCR_ENABLE_PADDLEOCR,
+            "rapidocr": cls.OCR_ENABLE_RAPIDOCR,
             "apple_vision": cls.OCR_ENABLE_APPLE_VISION and not is_running_in_docker(),
             "llm_proxy_vision": cls.OCR_ENABLE_LLM_PROXY_VISION,
             "llm_proxy_cloud": cls.OCR_ENABLE_LLM_PROXY_CLOUD,

@@ -5,6 +5,7 @@ TIER_TO_PROVIDER = {
     "tesseract": "tesseract",
     "easyocr": "easyocr",
     "paddleocr": "paddleocr",
+    "rapidocr": "rapidocr",
     "apple_vision": "apple_vision",
     "llm_local": "llm_proxy_vision",
     "llm_cloud": "llm_proxy_cloud"
@@ -18,6 +19,7 @@ DEFAULT_TIER_ORDER = [
     "tesseract",
     "easyocr",
     "paddleocr",
+    "rapidocr",
     "apple_vision",
     "llm_local",
     "llm_cloud"

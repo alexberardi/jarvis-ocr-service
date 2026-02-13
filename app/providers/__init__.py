@@ -19,6 +19,12 @@ except ImportError:
     pass
 
 try:
+    from app.providers.rapidocr_provider import RapidOCRProvider
+    __all__.append("RapidOCRProvider")
+except ImportError:
+    pass
+
+try:
     from app.providers.apple_vision_provider import AppleVisionProvider
     __all__.append("AppleVisionProvider")
 except ImportError:

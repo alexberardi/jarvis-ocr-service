@@ -21,6 +21,11 @@ except ImportError:
     PaddleOCRProvider = None
 
 try:
+    from app.providers.rapidocr_provider import RapidOCRProvider
+except ImportError:
+    RapidOCRProvider = None
+
+try:
     from app.providers.apple_vision_provider import AppleVisionProvider
 except ImportError:
     AppleVisionProvider = None
@@ -65,7 +70,15 @@ class ProviderManager:
                 self.providers["paddleocr"] = paddleocr
             else:
                 logger.warning("PaddleOCR is enabled but not available")
-        
+
+        # RapidOCR (optional)
+        if config.OCR_ENABLE_RAPIDOCR and RapidOCRProvider:
+            rapidocr = RapidOCRProvider()
+            if rapidocr.is_available():
+                self.providers["rapidocr"] = rapidocr
+            else:
+                logger.warning("RapidOCR is enabled but not available")
+
         # Apple Vision (optional, macOS only)
         if config.OCR_ENABLE_APPLE_VISION and AppleVisionProvider:
             apple_vision = AppleVisionProvider()
@@ -118,10 +131,10 @@ class ProviderManager:
             ValueError: If provider is not available
         """
         if provider_name == "auto":
-            # Auto resolution order: Tesseract → EasyOCR → PaddleOCR → Apple Vision → LLM Proxy Vision → LLM Proxy Cloud
+            # Auto resolution order: Tesseract → EasyOCR → PaddleOCR → RapidOCR → Apple Vision → LLM Proxy Vision → LLM Proxy Cloud
             # (Ordered by processing cost/power, cheapest/fastest first)
             # Note: Validation guardrails will be applied during processing
-            for name in ["tesseract", "easyocr", "paddleocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]:
+            for name in ["tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]:
                 if name in self.providers:
                     provider = self.providers[name]
                     if provider.is_available():
@@ -266,7 +279,7 @@ IMPORTANT INSTRUCTIONS:
         
         # If auto mode, try providers in order with validation
         if provider_name == "auto":
-            provider_order = ["tesseract", "easyocr", "paddleocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]
+            provider_order = ["tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]
             
             for name in provider_order:
                 if name not in self.providers:
@@ -385,7 +398,7 @@ IMPORTANT INSTRUCTIONS:
         # Select provider and process batch
         if provider_name == "auto":
             # Try providers in order with validation (like single image mode)
-            provider_order = ["tesseract", "easyocr", "paddleocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]
+            provider_order = ["tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]
             
             for name in provider_order:
                 if name not in self.providers:

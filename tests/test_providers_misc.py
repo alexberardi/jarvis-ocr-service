@@ -221,6 +221,41 @@ class TestPaddleOCRUnavailable:
                 provider._ensure_initialized()
 
 
+# --- RapidOCR unavailability tests ---
+
+
+class TestRapidOCRUnavailable:
+    """Tests for RapidOCR when the library is not available."""
+
+    def test_name(self):
+        from app.providers.rapidocr_provider import RapidOCRProvider
+        provider = RapidOCRProvider()
+        assert provider.name == "rapidocr"
+
+    def test_is_available_when_lib_missing(self):
+        from app.providers.rapidocr_provider import RapidOCRProvider
+
+        with patch("app.providers.rapidocr_provider._check_rapidocr_available", return_value=False):
+            provider = RapidOCRProvider()
+            assert provider.is_available() is False
+
+    def test_process_raises_when_lib_missing(self):
+        from app.providers.rapidocr_provider import RapidOCRProvider
+
+        with patch("app.providers.rapidocr_provider._check_rapidocr_available", return_value=False):
+            provider = RapidOCRProvider()
+            with pytest.raises(RuntimeError, match="not installed"):
+                provider.process(b"fake")
+
+    def test_ensure_initialized_raises_when_lib_missing(self):
+        from app.providers.rapidocr_provider import RapidOCRProvider
+
+        with patch("app.providers.rapidocr_provider._check_rapidocr_available", return_value=False):
+            provider = RapidOCRProvider()
+            with pytest.raises(RuntimeError, match="not installed"):
+                provider._ensure_initialized()
+
+
 # --- Apple Vision unavailability tests ---
 
 

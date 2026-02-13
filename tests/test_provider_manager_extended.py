@@ -23,6 +23,7 @@ def _make_manager_with_providers(**overrides):
     config_defaults = {
         "OCR_ENABLE_EASYOCR": False,
         "OCR_ENABLE_PADDLEOCR": False,
+        "OCR_ENABLE_RAPIDOCR": False,
         "OCR_ENABLE_APPLE_VISION": False,
         "OCR_ENABLE_LLM_PROXY_VISION": False,
         "OCR_ENABLE_LLM_PROXY_CLOUD": False,
@@ -285,6 +286,7 @@ class TestInitOptionalProviders:
                 with patch("app.provider_manager.config") as mock_config:
                     mock_config.OCR_ENABLE_EASYOCR = True
                     mock_config.OCR_ENABLE_PADDLEOCR = False
+                    mock_config.OCR_ENABLE_RAPIDOCR = False
                     mock_config.OCR_ENABLE_APPLE_VISION = False
                     mock_config.OCR_ENABLE_LLM_PROXY_VISION = False
                     mock_config.OCR_ENABLE_LLM_PROXY_CLOUD = False
@@ -306,6 +308,7 @@ class TestInitOptionalProviders:
                 with patch("app.provider_manager.config") as mock_config:
                     mock_config.OCR_ENABLE_EASYOCR = True
                     mock_config.OCR_ENABLE_PADDLEOCR = False
+                    mock_config.OCR_ENABLE_RAPIDOCR = False
                     mock_config.OCR_ENABLE_APPLE_VISION = False
                     mock_config.OCR_ENABLE_LLM_PROXY_VISION = False
                     mock_config.OCR_ENABLE_LLM_PROXY_CLOUD = False
@@ -333,6 +336,7 @@ class TestInitOptionalProviders:
                     with patch("app.provider_manager.config") as mock_config:
                         mock_config.OCR_ENABLE_EASYOCR = False
                         mock_config.OCR_ENABLE_PADDLEOCR = False
+                        mock_config.OCR_ENABLE_RAPIDOCR = False
                         mock_config.OCR_ENABLE_APPLE_VISION = False
                         mock_config.OCR_ENABLE_LLM_PROXY_VISION = True
                         mock_config.OCR_ENABLE_LLM_PROXY_CLOUD = True

@@ -74,4 +74,4 @@ class TestConstants:
             assert PROVIDER_TO_TIER[provider] == tier
 
     def test_default_tier_order_length(self):
-        assert len(DEFAULT_TIER_ORDER) == 6
+        assert len(DEFAULT_TIER_ORDER) == 7
