@@ -8,7 +8,7 @@ services:
     env_file:
       - .env
     environment:
-      - JARVIS_CONFIG_URL=http://host.docker.internal:8020
+      - JARVIS_CONFIG_URL=http://host.docker.internal:8013
       - JARVIS_CONFIG_URL_STYLE=dockerized
     extra_hosts:
       - "${DOCKER_HOST_ALIAS:-host.docker.internal}:host-gateway"
@@ -19,3 +19,33 @@ services:
     command: >
       sh -c "pip install -q -e /app/jarvis-config-client -e /app/jarvis-settings-client &&
              python -m uvicorn app.main:app --host 0.0.0.0 --port 5009 --reload"
+
+  postgres:
+    profiles: ["standalone"]
+    image: postgres:15
+    environment:
+      POSTGRES_DB: jarvis_ocr
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ocr-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    profiles: ["standalone"]
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  ocr-pg-data:
