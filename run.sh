@@ -92,8 +92,8 @@ poetry install
 
 # Install local jarvis packages
 echo -e "${YELLOW}Installing local jarvis packages...${NC}"
-pip install -q -e ../jarvis-config-client 2>/dev/null || echo -e "${YELLOW}Note: jarvis-config-client not found locally${NC}"
-pip install -q -e ../jarvis-settings-client 2>/dev/null || echo -e "${YELLOW}Note: jarvis-settings-client not found locally${NC}"
+poetry run pip install -q -e ../jarvis-config-client 2>/dev/null || echo -e "${YELLOW}Note: jarvis-config-client not found locally${NC}"
+poetry run pip install -q -e ../jarvis-settings-client 2>/dev/null || echo -e "${YELLOW}Note: jarvis-settings-client not found locally${NC}"
 
 # Check if .env file exists
 if [ ! -f ".env" ]; then
