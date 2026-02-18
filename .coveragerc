@@ -1,0 +1,14 @@
+[run]
+source = app,worker
+omit =
+    app/providers/easyocr_provider.py
+    app/providers/paddleocr_provider.py
+    app/providers/apple_vision_provider.py
+    app/providers/llm_proxy_provider.py
+    app/providers/tesseract_provider.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    pass

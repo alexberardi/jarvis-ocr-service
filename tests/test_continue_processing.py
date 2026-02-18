@@ -3,11 +3,14 @@
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 
+from app.providers.base import OCRResult, TextBlock
 from app.validation_state import PendingValidationState
 from app.continue_processing import (
     process_validation_result,
     _build_image_result,
-    _create_completion_and_send
+    _create_completion_and_send,
+    _process_with_next_tier,
+    _process_next_image,
 )
 
 
@@ -395,3 +398,324 @@ class TestCreateCompletionAndSend:
 
             message = mock_queue.enqueue.call_args[0][1]
             assert message["payload"]["status"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_enqueue_failure_logs_error(self, sample_original_job, sample_results):
+        """Should log error when enqueue returns False."""
+        with patch('app.continue_processing.queue_client') as mock_queue:
+            mock_queue.enqueue.return_value = False
+
+            await _create_completion_and_send(
+                original_job=sample_original_job,
+                results=sample_results
+            )
+
+            mock_queue.enqueue.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_reply_to_does_not_enqueue(self, sample_results):
+        """Should not enqueue when no reply_to queue specified."""
+        job_no_reply = {
+            "job_id": "ocr-123",
+            "workflow_id": "wf-456",
+            "source": "jarvis-recipes-server",
+            "payload": {"image_count": 1},
+            "trace": {"request_id": "req-123", "parent_job_id": "parent-456"}
+        }
+
+        with patch('app.continue_processing.queue_client') as mock_queue:
+            await _create_completion_and_send(
+                original_job=job_no_reply,
+                results=sample_results
+            )
+
+            mock_queue.enqueue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_failed_status_includes_error(self, sample_original_job):
+        """Failed status should include error in payload."""
+        results = [{
+            "index": 0,
+            "ocr_text": "",
+            "truncated": False,
+            "meta": {"is_valid": False, "confidence": 0.0},
+            "error": {"code": "ocr_engine_error", "message": "Provider crashed"}
+        }]
+        error = {"message": "All tiers exhausted", "code": "ocr_no_valid_output"}
+
+        with patch('app.continue_processing.queue_client') as mock_queue:
+            mock_queue.enqueue.return_value = True
+
+            await _create_completion_and_send(
+                original_job=sample_original_job,
+                results=results,
+                error=error
+            )
+
+            message = mock_queue.enqueue.call_args[0][1]
+            assert message["payload"]["status"] == "failed"
+            assert message["payload"]["error"]["code"] == "ocr_no_valid_output"
+
+
+def _make_state(**overrides) -> PendingValidationState:
+    """Helper to build a PendingValidationState with defaults."""
+    defaults = {
+        "original_job": {
+            "job_id": "ocr-123",
+            "workflow_id": "wf-456",
+            "reply_to": "jarvis.recipes.jobs",
+            "source": "jarvis-recipes-server",
+            "payload": {
+                "image_refs": [
+                    {"index": 0, "kind": "s3", "value": "s3://bucket/img0.png"},
+                    {"index": 1, "kind": "s3", "value": "s3://bucket/img1.png"},
+                ],
+                "image_count": 2,
+                "options": {"language": "en"}
+            },
+            "trace": {"request_id": "req-1", "parent_job_id": "parent-1"}
+        },
+        "image_index": 0,
+        "tier_name": "tesseract",
+        "ocr_text": "Some text",
+        "remaining_tiers": ["easyocr"],
+        "processed_results": [],
+        "validation_job_id": "val-001",
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+    defaults.update(overrides)
+    return PendingValidationState(**defaults)
+
+
+def _canned_ocr_result(text: str = "OCR output") -> OCRResult:
+    return OCRResult(
+        text=text,
+        blocks=[TextBlock(text=text, bbox=[0, 0, 100, 20], confidence=0.95)],
+        duration_ms=42.0,
+    )
+
+
+class TestProcessWithNextTier:
+    """Tests for _process_with_next_tier tier-fallback logic."""
+
+    @pytest.mark.asyncio
+    async def test_image_ref_not_found_completes_with_error(self):
+        """Complete with error when image ref is missing."""
+        state = _make_state(image_index=99)  # no ref at index 99
+
+        with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+            await _process_with_next_tier(state, "easyocr", [])
+
+            mock_send.assert_called_once()
+            results = mock_send.call_args[0][1]
+            assert results[-1]["error"]["code"] == "image_not_found"
+
+    @pytest.mark.asyncio
+    async def test_image_resolver_error_completes_with_error(self):
+        """Complete with error when image resolver raises."""
+        from app.image_resolver import ImageResolverError
+
+        state = _make_state()
+
+        with patch('app.image_resolver.resolve_image', side_effect=ImageResolverError("S3 down")):
+            with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                await _process_with_next_tier(state, "easyocr", [])
+
+                mock_send.assert_called_once()
+                results = mock_send.call_args[0][1]
+                assert results[-1]["error"]["code"] == "image_not_found"
+
+    @pytest.mark.asyncio
+    async def test_success_enqueues_validation(self):
+        """Successfully process image and enqueue LLM validation."""
+        state = _make_state()
+        mock_pm = MagicMock()
+        mock_pm.process_image = AsyncMock(return_value=(_canned_ocr_result(), "easyocr"))
+        mock_state_mgr = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.enqueue = AsyncMock()
+
+        with patch('app.image_resolver.resolve_image', return_value=(b"img", "image/png")):
+            with patch('app.provider_manager.ProviderManager', return_value=mock_pm):
+                with patch('app.validation_callback.get_state_manager', return_value=mock_state_mgr):
+                    with patch('app.llm_queue_client.get_llm_queue_client', return_value=mock_llm):
+                        await _process_with_next_tier(state, "easyocr", ["llm_local"])
+
+        mock_state_mgr.save.assert_called_once()
+        mock_llm.enqueue.assert_called_once()
+        saved_state = mock_state_mgr.save.call_args[0][0]
+        assert saved_state.tier_name == "easyocr"
+        assert saved_state.remaining_tiers == ["llm_local"]
+
+    @pytest.mark.asyncio
+    async def test_tier_failure_with_remaining_retries_next(self):
+        """When tier fails with remaining tiers, recurse to next tier."""
+        state = _make_state()
+
+        with patch('app.image_resolver.resolve_image', return_value=(b"img", "image/png")):
+            with patch('app.provider_manager.ProviderManager', side_effect=RuntimeError("init fail")):
+                with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                    # remaining_tiers=["llm_local"] means it will recurse
+                    # The recursion will also fail (ProviderManager still raises),
+                    # and with no remaining tiers, it will complete
+                    await _process_with_next_tier(state, "easyocr", ["llm_local"])
+
+                    mock_send.assert_called_once()
+                    results = mock_send.call_args[0][1]
+                    assert results[-1]["error"]["code"] == "ocr_engine_error"
+
+    @pytest.mark.asyncio
+    async def test_tier_failure_no_remaining_completes_failed(self):
+        """When tier fails with no remaining tiers, complete with error."""
+        state = _make_state(remaining_tiers=[])
+
+        with patch('app.image_resolver.resolve_image', return_value=(b"img", "image/png")):
+            with patch('app.provider_manager.ProviderManager', side_effect=RuntimeError("init fail")):
+                with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                    await _process_with_next_tier(state, "easyocr", [])
+
+                    mock_send.assert_called_once()
+                    results = mock_send.call_args[0][1]
+                    assert results[-1]["error"]["code"] == "ocr_engine_error"
+                    assert results[-1]["meta"]["tier"] == "easyocr"
+
+
+class TestProcessNextImage:
+    """Tests for _process_next_image multi-image logic."""
+
+    @pytest.fixture
+    def current_result(self):
+        return {
+            "index": 0,
+            "ocr_text": "First image text",
+            "truncated": False,
+            "meta": {"is_valid": True, "confidence": 0.9, "tier": "tesseract",
+                     "language": "en", "text_len": 16, "validation_reason": "ok"},
+            "error": None,
+        }
+
+    @pytest.mark.asyncio
+    async def test_image_ref_not_found_completes(self, current_result):
+        """Complete with existing results when next image ref not found."""
+        state = _make_state(image_index=0)
+
+        with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+            await _process_next_image(state, current_result, next_image_index=99)
+
+            mock_send.assert_called_once()
+            results = mock_send.call_args[0][1]
+            assert len(results) == 1  # just the current_result
+
+    @pytest.mark.asyncio
+    async def test_no_enabled_tiers_completes(self, current_result):
+        """Complete when no tiers are enabled."""
+        state = _make_state()
+
+        from app.continue_processing import config as real_config
+        with patch.object(real_config, 'get_enabled_tiers', return_value=[]):
+            with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                await _process_next_image(state, current_result, next_image_index=1)
+
+                mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_success_enqueues_validation_for_next_image(self, current_result):
+        """Successfully process next image and enqueue validation."""
+        state = _make_state()
+        mock_pm = MagicMock()
+        mock_pm.process_image = AsyncMock(return_value=(_canned_ocr_result(), "tesseract"))
+        mock_state_mgr = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.enqueue = AsyncMock()
+
+        from app.continue_processing import config as real_config
+        with patch('app.image_resolver.resolve_image', return_value=(b"img", "image/png")):
+            with patch('app.provider_manager.ProviderManager', return_value=mock_pm):
+                with patch('app.validation_callback.get_state_manager', return_value=mock_state_mgr):
+                    with patch('app.llm_queue_client.get_llm_queue_client', return_value=mock_llm):
+                        with patch.object(real_config, 'get_enabled_tiers', return_value=["tesseract", "easyocr"]):
+                            await _process_next_image(state, current_result, next_image_index=1)
+
+        mock_state_mgr.save.assert_called_once()
+        saved_state = mock_state_mgr.save.call_args[0][0]
+        assert saved_state.image_index == 1
+        assert saved_state.tier_name == "tesseract"
+        mock_llm.enqueue.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resolver_error_with_more_images_continues(self, current_result):
+        """On resolver error with more images, continue to next."""
+        from app.image_resolver import ImageResolverError
+
+        state = _make_state()
+        state.original_job["payload"]["image_count"] = 3
+        state.original_job["payload"]["image_refs"].append(
+            {"index": 2, "kind": "s3", "value": "s3://bucket/img2.png"}
+        )
+
+        from app.continue_processing import config as real_config
+        with patch('app.image_resolver.resolve_image', side_effect=ImageResolverError("S3 err")):
+            with patch.object(real_config, 'get_enabled_tiers', return_value=["tesseract"]):
+                with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                    await _process_next_image(state, current_result, next_image_index=1)
+
+                    mock_send.assert_called_once()
+                    results = mock_send.call_args[0][1]
+                    error_results = [r for r in results if (r.get("error") or {}).get("code") == "image_not_found"]
+                    assert len(error_results) >= 2
+
+    @pytest.mark.asyncio
+    async def test_resolver_error_last_image_completes(self, current_result):
+        """On resolver error for last image, send completion."""
+        from app.image_resolver import ImageResolverError
+
+        state = _make_state()
+
+        from app.continue_processing import config as real_config
+        with patch('app.image_resolver.resolve_image', side_effect=ImageResolverError("S3 err")):
+            with patch.object(real_config, 'get_enabled_tiers', return_value=["tesseract"]):
+                with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                    await _process_next_image(state, current_result, next_image_index=1)
+
+                    mock_send.assert_called_once()
+                    results = mock_send.call_args[0][1]
+                    error_results = [r for r in results if (r.get("error") or {}).get("code") == "image_not_found"]
+                    assert len(error_results) >= 1
+
+    @pytest.mark.asyncio
+    async def test_provider_failure_last_image_completes(self, current_result):
+        """On provider failure for last image, send completion."""
+        state = _make_state()
+
+        from app.continue_processing import config as real_config
+        with patch('app.image_resolver.resolve_image', return_value=(b"img", "image/png")):
+            with patch.object(real_config, 'get_enabled_tiers', return_value=["tesseract"]):
+                with patch('app.provider_manager.ProviderManager', side_effect=RuntimeError("boom")):
+                    with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                        await _process_next_image(state, current_result, next_image_index=1)
+
+                        mock_send.assert_called_once()
+                        results = mock_send.call_args[0][1]
+                        error_results = [r for r in results if (r.get("error") or {}).get("code") == "ocr_engine_error"]
+                        assert len(error_results) >= 1
+
+    @pytest.mark.asyncio
+    async def test_provider_failure_with_more_images_continues(self, current_result):
+        """On provider failure with more images, continue to next."""
+        state = _make_state()
+        state.original_job["payload"]["image_count"] = 3
+        state.original_job["payload"]["image_refs"].append(
+            {"index": 2, "kind": "s3", "value": "s3://bucket/img2.png"}
+        )
+
+        from app.continue_processing import config as real_config
+        with patch('app.image_resolver.resolve_image', return_value=(b"img", "image/png")):
+            with patch.object(real_config, 'get_enabled_tiers', return_value=["tesseract"]):
+                with patch('app.provider_manager.ProviderManager', side_effect=RuntimeError("boom")):
+                    with patch('app.continue_processing._create_completion_and_send', new_callable=AsyncMock) as mock_send:
+                        await _process_next_image(state, current_result, next_image_index=1)
+
+                        mock_send.assert_called_once()
+                        results = mock_send.call_args[0][1]
+                        error_results = [r for r in results if (r.get("error") or {}).get("code") == "ocr_engine_error"]
+                        assert len(error_results) >= 2

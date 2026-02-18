@@ -111,7 +111,7 @@ class TestAuthClient:
 
         with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_response):
             with patch("app.auth_client.service_config") as mock_sc:
-                mock_sc.get_auth_url.return_value = "http://localhost:8007"
+                mock_sc.get_auth_url.return_value = "http://localhost:7701"
                 result = await client.verify_app_credentials("app1", "key1")
 
         assert result["app_id"] == "app1"
@@ -128,7 +128,7 @@ class TestAuthClient:
 
         with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_response):
             with patch("app.auth_client.service_config") as mock_sc:
-                mock_sc.get_auth_url.return_value = "http://localhost:8007"
+                mock_sc.get_auth_url.return_value = "http://localhost:7701"
                 result = await client.verify_app_credentials("app1", "key1")
 
         assert result["ok"] is False
@@ -139,11 +139,11 @@ class TestAuthClient:
         client = AuthClient()
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.side_effect = Exception("not json")
+        mock_response.json.side_effect = ValueError("not json")
 
         with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_response):
             with patch("app.auth_client.service_config") as mock_sc:
-                mock_sc.get_auth_url.return_value = "http://localhost:8007"
+                mock_sc.get_auth_url.return_value = "http://localhost:7701"
                 result = await client.verify_app_credentials("app1", "key1")
 
         assert result["ok"] is False
@@ -159,7 +159,7 @@ class TestAuthClient:
             side_effect=httpx.TimeoutException("timeout"),
         ):
             with patch("app.auth_client.service_config") as mock_sc:
-                mock_sc.get_auth_url.return_value = "http://localhost:8007"
+                mock_sc.get_auth_url.return_value = "http://localhost:7701"
                 with pytest.raises(httpx.RequestError):
                     await client.verify_app_credentials("app1", "key1")
 
@@ -173,7 +173,7 @@ class TestAuthClient:
             side_effect=httpx.ConnectError("refused"),
         ):
             with patch("app.auth_client.service_config") as mock_sc:
-                mock_sc.get_auth_url.return_value = "http://localhost:8007"
+                mock_sc.get_auth_url.return_value = "http://localhost:7701"
                 with pytest.raises(httpx.RequestError):
                     await client.verify_app_credentials("app1", "key1")
 
@@ -194,11 +194,11 @@ class TestAuthClient:
 
         with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock, return_value=mock_response) as mock_get:
             with patch("app.auth_client.service_config") as mock_sc:
-                mock_sc.get_auth_url.return_value = "http://localhost:8007/"
+                mock_sc.get_auth_url.return_value = "http://localhost:7701/"
                 await client.verify_app_credentials("app1", "key1")
 
         call_args = mock_get.call_args
-        assert call_args[0][0] == "http://localhost:8007/internal/app-ping"
+        assert call_args[0][0] == "http://localhost:7701/internal/app-ping"
 
 
 class TestVerifyAppAuth:

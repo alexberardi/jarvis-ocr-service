@@ -4,11 +4,11 @@ services:
   ocr-server:
     build: .
     ports:
-      - "${OCR_PORT:-5009}:5009"
+      - "${OCR_PORT:-7031}:7031"
     env_file:
       - .env
     environment:
-      - JARVIS_CONFIG_URL=http://host.docker.internal:8013
+      - JARVIS_CONFIG_URL=http://host.docker.internal:7700
       - JARVIS_CONFIG_URL_STYLE=dockerized
     extra_hosts:
       - "${DOCKER_HOST_ALIAS:-host.docker.internal}:host-gateway"
@@ -18,7 +18,7 @@ services:
       - ../jarvis-settings-client:/app/jarvis-settings-client
     command: >
       sh -c "pip install -q -e /app/jarvis-config-client -e /app/jarvis-settings-client &&
-             python -m uvicorn app.main:app --host 0.0.0.0 --port 5009 --reload"
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 7031 --reload"
 
   postgres:
     profiles: ["standalone"]

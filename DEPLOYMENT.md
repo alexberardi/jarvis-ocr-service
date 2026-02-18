@@ -220,7 +220,7 @@ pm2 logs ocr-worker
 1. Check Poetry is installed: `poetry --version`
 2. Check dependencies: `poetry install`
 3. Check .env file exists and is configured
-4. Check port is available: `lsof -i :5009`
+4. Check port is available: `lsof -i :7031`
 
 ### Worker not processing jobs
 1. Check Redis is running: `redis-cli ping`

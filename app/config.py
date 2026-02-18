@@ -33,7 +33,7 @@ class Config:
     """Application configuration from environment variables."""
     
     # Server config
-    OCR_PORT: int = int(os.getenv("OCR_PORT", "5009"))
+    OCR_PORT: int = int(os.getenv("OCR_PORT", "7031"))
     OCR_LOG_LEVEL: str = os.getenv("OCR_LOG_LEVEL", "info").upper()
     
     # Provider flags
@@ -67,6 +67,9 @@ class Config:
     OCR_MIN_CONFIDENCE: Optional[float] = None  # Optional minimum confidence (informational only in v1)
     OCR_ENABLED_TIERS: str = os.getenv("OCR_ENABLED_TIERS", "tesseract,easyocr,paddleocr,rapidocr,apple_vision,llm_local,llm_cloud")
     
+    # Public URL for callbacks
+    OCR_PUBLIC_URL: str = os.getenv("OCR_PUBLIC_URL", "http://localhost:7031")
+
     # S3/MinIO configuration
     S3_ENDPOINT_URL: Optional[str] = os.getenv("S3_ENDPOINT_URL")  # Optional custom endpoint (for MinIO)
     S3_REGION: str = os.getenv("S3_REGION", "us-east-2")  # AWS region

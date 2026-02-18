@@ -4,14 +4,14 @@ services:
   ocr-server:
     build: .
     ports:
-      - "${OCR_PORT:-5009}:5009"
+      - "${OCR_PORT:-7031}:7031"
     env_file:
       - .env
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5009/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7031/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 5009
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 7031

@@ -93,7 +93,7 @@ app = FastAPI(
 from jarvis_settings_client import create_settings_router, create_superuser_auth
 from app.services.settings_service import get_settings_service
 
-_auth_url = os.getenv("JARVIS_AUTH_BASE_URL", "http://localhost:8007")
+_auth_url = os.getenv("JARVIS_AUTH_BASE_URL", "http://localhost:7701")
 _settings_router = create_settings_router(
     service=get_settings_service(),
     auth_dependency=verify_app_auth,

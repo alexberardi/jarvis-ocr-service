@@ -8,7 +8,7 @@ import zlib
 
 # Set environment variables BEFORE any app imports
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("JARVIS_AUTH_BASE_URL", "http://localhost:8007")
+os.environ.setdefault("JARVIS_AUTH_BASE_URL", "http://localhost:7701")
 os.environ.setdefault("OCR_LOG_LEVEL", "WARNING")
 os.environ.setdefault("OCR_ENABLE_EASYOCR", "false")
 os.environ.setdefault("OCR_ENABLE_PADDLEOCR", "false")

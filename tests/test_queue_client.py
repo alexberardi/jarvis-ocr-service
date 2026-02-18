@@ -249,7 +249,126 @@ class TestUpdateJobStatus:
         with patch.object(qc, "_get_client", return_value=mock_client):
             assert qc.update_job_status("missing", "completed") is False
 
+    def test_with_error(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        existing = json.dumps({"job_id": "j1", "status": "pending"}).encode()
+        mock_client.get.return_value = existing
+
+        with patch.object(qc, "_get_client", return_value=mock_client):
+            result = qc.update_job_status("j1", "failed", error="Provider crashed")
+
+        assert result is True
+        # Verify the stored data includes the error
+        stored = json.loads(mock_client.setex.call_args[0][2])
+        assert stored["error"] == "Provider crashed"
+        assert stored["status"] == "failed"
+
+    def test_redis_error_returns_false(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        existing = json.dumps({"job_id": "j1", "status": "pending"}).encode()
+        mock_client.get.return_value = existing
+        mock_client.setex.side_effect = Exception("write failed")
+
+        with patch.object(qc, "_get_client", return_value=mock_client):
+            assert qc.update_job_status("j1", "completed") is False
+
     def test_redis_unavailable(self):
         qc = QueueClient()
         with patch.object(qc, "_get_client", return_value=None):
             assert qc.update_job_status("j1", "completed") is False
+
+
+class TestDequeueJobErrors:
+    """Additional error-path tests for QueueClient.dequeue_job."""
+
+    def test_redis_error_returns_none(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        mock_client.rpop.side_effect = Exception("connection lost")
+        with patch.object(qc, "_get_client", return_value=mock_client):
+            assert qc.dequeue_job(timeout=0) is None
+
+    def test_blocking_redis_error_returns_none(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        mock_client.brpop.side_effect = Exception("timeout error")
+        with patch.object(qc, "_get_client", return_value=mock_client):
+            assert qc.dequeue_job(timeout=5) is None
+
+
+class TestEnqueueWithRQ:
+    """Tests for QueueClient._enqueue_with_rq."""
+
+    def test_rq_not_available_returns_false(self):
+        qc = QueueClient()
+        with patch("app.queue_client.RQ_AVAILABLE", False):
+            assert qc._enqueue_with_rq("jarvis.recipes.jobs", {"job_id": "j1"}) is False
+
+    def test_redis_unavailable_returns_false(self):
+        qc = QueueClient()
+        with patch("app.queue_client.RQ_AVAILABLE", True):
+            with patch.object(qc, "_get_client", return_value=None):
+                assert qc._enqueue_with_rq("jarvis.recipes.jobs", {"job_id": "j1"}) is False
+
+    def test_missing_job_id_returns_false(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        mock_redis_cls = MagicMock()
+        with patch("app.queue_client.RQ_AVAILABLE", True):
+            with patch.object(qc, "_get_client", return_value=mock_client):
+                with patch("app.queue_client.redis") as mock_redis_mod:
+                    mock_redis_mod.Redis = mock_redis_cls
+                    assert qc._enqueue_with_rq("jarvis.recipes.jobs", {"no_id": True}) is False
+
+    def test_success(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        mock_redis_cls = MagicMock()
+        mock_queue_cls = MagicMock()
+        mock_queue_instance = MagicMock()
+        mock_queue_cls.return_value = mock_queue_instance
+
+        with patch("app.queue_client.RQ_AVAILABLE", True):
+            with patch.object(qc, "_get_client", return_value=mock_client):
+                with patch("app.queue_client.redis") as mock_redis_mod:
+                    mock_redis_mod.Redis = mock_redis_cls
+                    with patch("app.queue_client.Queue", mock_queue_cls):
+                        result = qc._enqueue_with_rq(
+                            "jarvis.recipes.jobs",
+                            {"job_id": "j1", "job_type": "ocr.completed"},
+                        )
+
+        assert result is True
+        mock_queue_instance.enqueue.assert_called_once()
+
+    def test_exception_returns_false(self):
+        qc = QueueClient()
+        mock_client = MagicMock()
+        mock_redis_cls = MagicMock()
+        mock_queue_cls = MagicMock()
+        mock_queue_cls.return_value.enqueue.side_effect = Exception("RQ error")
+
+        with patch("app.queue_client.RQ_AVAILABLE", True):
+            with patch.object(qc, "_get_client", return_value=mock_client):
+                with patch("app.queue_client.redis") as mock_redis_mod:
+                    mock_redis_mod.Redis = mock_redis_cls
+                    with patch("app.queue_client.Queue", mock_queue_cls):
+                        result = qc._enqueue_with_rq(
+                            "jarvis.recipes.jobs",
+                            {"job_id": "j1", "job_type": "ocr.completed"},
+                        )
+
+        assert result is False
+
+
+class TestPublishMessage:
+    """Tests for QueueClient.publish_message (deprecated wrapper)."""
+
+    def test_delegates_to_enqueue(self):
+        qc = QueueClient()
+        with patch.object(qc, "enqueue", return_value=True) as mock_enqueue:
+            result = qc.publish_message("test.queue", {"data": 1}, to_back=True)
+        assert result is True
+        mock_enqueue.assert_called_once_with("test.queue", {"data": 1}, True)

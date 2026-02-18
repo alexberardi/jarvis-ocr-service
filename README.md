@@ -62,7 +62,7 @@ python main.py
 docker build -t jarvis-ocr .
 
 # Run the container
-docker run -p 5009:5009 jarvis-ocr
+docker run -p 7031:7031 jarvis-ocr
 ```
 
 ## Configuration
@@ -74,7 +74,7 @@ Configuration is managed via environment variables. You can set them directly or
 Example `.env` file:
 ```bash
 # Server Configuration
-OCR_PORT=5009
+OCR_PORT=7031
 OCR_LOG_LEVEL=info
 
 # Provider Configuration
@@ -90,7 +90,7 @@ JARVIS_APP_AUTH_CACHE_TTL_SECONDS=60
 Set environment variables to configure the service:
 
 ### Server Configuration
-- `OCR_PORT`: Port to bind (default: 5009)
+- `OCR_PORT`: Port to bind (default: 7031)
 - `OCR_LOG_LEVEL`: Logging level (default: info)
 
 ### Provider Configuration
@@ -121,7 +121,7 @@ The OCR service uses **Jarvis Auth app-to-app authentication**. All protected en
 ```bash
 curl -H "X-Jarvis-App-Id: jarvis-recipes-server" \
      -H "X-Jarvis-App-Key: $JARVIS_APP_KEY" \
-     -X POST http://localhost:5009/v1/ocr \
+     -X POST http://localhost:7031/v1/ocr \
      -H "Content-Type: application/json" \
      -d '{"image": {"content_type": "image/png", "base64": "..."}}'
 ```
@@ -202,7 +202,7 @@ Health check endpoint.
 poetry install
 
 # Run with auto-reload
-poetry run uvicorn app.main:app --reload --port 5009
+poetry run uvicorn app.main:app --reload --port 7031
 ```
 
 **With pip:**
@@ -211,7 +211,7 @@ poetry run uvicorn app.main:app --reload --port 5009
 pip install -r requirements.txt
 
 # Run with auto-reload
-uvicorn app.main:app --reload --port 5009
+uvicorn app.main:app --reload --port 7031
 ```
 
 ## Deployment

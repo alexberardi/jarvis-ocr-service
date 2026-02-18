@@ -38,7 +38,7 @@ class TestLLMQueueClient:
 
     def test_build_enqueue_payload_has_required_fields(self, client, sample_state):
         """Payload should have job_id, job_type, request, callback, metadata."""
-        callback_url = "http://10.0.0.71:5009/internal/validation/callback"
+        callback_url = "http://10.0.0.71:7031/internal/validation/callback"
         payload = client._build_payload(sample_state, callback_url)
 
         assert payload["job_type"] == "chat_completion"
@@ -49,7 +49,7 @@ class TestLLMQueueClient:
 
     def test_build_enqueue_payload_callback_url(self, client, sample_state):
         """Callback URL should point to OCR service."""
-        callback_url = "http://10.0.0.71:5009/internal/validation/callback"
+        callback_url = "http://10.0.0.71:7031/internal/validation/callback"
         payload = client._build_payload(sample_state, callback_url)
 
         assert payload["callback"]["url"] == callback_url
@@ -117,7 +117,7 @@ class TestLLMQueueClient:
                 json=lambda: {"accepted": True, "job_id": "val-789"}
             )
 
-            callback_url = "http://10.0.0.71:5009/internal/validation/callback"
+            callback_url = "http://10.0.0.71:7031/internal/validation/callback"
             job_id = await client.enqueue(sample_state, callback_url)
 
             mock_post.assert_called_once()

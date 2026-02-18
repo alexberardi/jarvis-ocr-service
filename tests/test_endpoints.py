@@ -1,6 +1,7 @@
 """Tests for app/main.py API endpoints."""
 
 import base64
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,10 +23,20 @@ class TestHealthEndpoint:
     def test_no_auth_required(self):
         """Health endpoint should not require auth."""
         import app.main as main_module
+        from contextlib import asynccontextmanager
 
-        with TestClient(main_module.app) as tc:
-            resp = tc.get("/health")
-        assert resp.status_code == 200
+        @asynccontextmanager
+        async def _noop_lifespan(app):
+            yield
+
+        original_lifespan = main_module.app.router.lifespan_context
+        main_module.app.router.lifespan_context = _noop_lifespan
+        try:
+            with TestClient(main_module.app) as tc:
+                resp = tc.get("/health")
+            assert resp.status_code == 200
+        finally:
+            main_module.app.router.lifespan_context = original_lifespan
 
 
 class TestProvidersEndpoint:
@@ -39,12 +50,21 @@ class TestProvidersEndpoint:
     def test_401_without_auth(self):
         """Should fail without auth headers."""
         import app.main as main_module
+        from contextlib import asynccontextmanager
 
-        # Don't override auth
-        with TestClient(main_module.app) as tc:
-            resp = tc.get("/v1/providers")
-        # Will fail because no auth and no provider_manager
-        assert resp.status_code in (401, 503)
+        @asynccontextmanager
+        async def _noop_lifespan(app):
+            yield
+
+        original_lifespan = main_module.app.router.lifespan_context
+        main_module.app.router.lifespan_context = _noop_lifespan
+        try:
+            with TestClient(main_module.app) as tc:
+                resp = tc.get("/v1/providers")
+            # Will fail because no auth and no provider_manager
+            assert resp.status_code in (401, 503)
+        finally:
+            main_module.app.router.lifespan_context = original_lifespan
 
     def test_503_when_not_initialized(self, mock_auth):
         """Should return 503 when provider_manager is None."""
@@ -244,3 +264,114 @@ class TestBatchEndpoint:
             main_module.app.dependency_overrides.clear()
             main_module.provider_manager = None
             main_module.app.router.lifespan_context = original_lifespan
+
+
+class TestOCREndpointNotInitialized:
+    """Tests for POST /v1/ocr when provider_manager is None."""
+
+    def test_503_when_not_initialized(self, mock_auth, sample_base64_image):
+        import app.main as main_module
+
+        @asynccontextmanager
+        async def _noop_lifespan(app):
+            yield
+
+        original_lifespan = main_module.app.router.lifespan_context
+        main_module.app.router.lifespan_context = _noop_lifespan
+        main_module.provider_manager = None
+        main_module.app.dependency_overrides[verify_app_auth] = mock_auth
+
+        try:
+            with patch.object(main_module, "queue_client", MagicMock()):
+                with TestClient(main_module.app) as tc:
+                    resp = tc.post("/v1/ocr", json={
+                        "provider": "auto",
+                        "image": {
+                            "content_type": "image/png",
+                            "base64": sample_base64_image,
+                        },
+                    })
+            assert resp.status_code == 503
+        finally:
+            main_module.app.dependency_overrides.clear()
+            main_module.provider_manager = None
+            main_module.app.router.lifespan_context = original_lifespan
+
+
+class TestJobStatusErrors:
+    """Tests for GET /v1/ocr/jobs/{job_id} error paths."""
+
+    def test_unexpected_error_returns_500(self, client, mock_queue_client):
+        mock_queue_client.get_job_status.side_effect = Exception("db error")
+        resp = client.get("/v1/ocr/jobs/j1")
+        assert resp.status_code == 500
+
+
+class TestLifespan:
+    """Tests for the lifespan context manager (tested as async context manager directly)."""
+
+    @pytest.mark.asyncio
+    async def test_service_config_init_returns_true(self):
+        import app.main as main_module
+
+        with patch("app.main.service_config") as mock_sc:
+            mock_sc.init.return_value = True
+            with patch("app.main.config") as mock_config:
+                mock_config.validate.return_value = None
+                mock_config.JARVIS_APP_AUTH_CACHE_TTL_SECONDS = 60
+                with patch("app.main.ProviderManager") as mock_pm_cls:
+                    mock_pm_cls.return_value = MagicMock(
+                        get_available_providers=MagicMock(return_value={"tesseract": True})
+                    )
+                    with patch("app.auth_cache.set_auth_cache"):
+                        async with main_module.lifespan(main_module.app):
+                            assert main_module.provider_manager is not None
+
+            mock_sc.init.assert_called_once()
+        main_module.provider_manager = None
+
+    @pytest.mark.asyncio
+    async def test_service_config_init_returns_false(self):
+        import app.main as main_module
+
+        with patch("app.main.service_config") as mock_sc:
+            mock_sc.init.return_value = False
+            with patch("app.main.config") as mock_config:
+                mock_config.validate.return_value = None
+                mock_config.JARVIS_APP_AUTH_CACHE_TTL_SECONDS = 60
+                with patch("app.main.ProviderManager") as mock_pm_cls:
+                    mock_pm_cls.return_value = MagicMock(
+                        get_available_providers=MagicMock(return_value={"tesseract": True})
+                    )
+                    with patch("app.auth_cache.set_auth_cache"):
+                        async with main_module.lifespan(main_module.app):
+                            assert main_module.provider_manager is not None
+
+        main_module.provider_manager = None
+
+    @pytest.mark.asyncio
+    async def test_config_validate_failure_exits(self):
+        import app.main as main_module
+
+        with patch("app.main.service_config") as mock_sc:
+            mock_sc.init.return_value = False
+            with patch("app.main.config") as mock_config:
+                mock_config.validate.side_effect = Exception("bad config")
+                with pytest.raises(SystemExit):
+                    async with main_module.lifespan(main_module.app):
+                        pass
+        main_module.provider_manager = None
+
+    @pytest.mark.asyncio
+    async def test_provider_init_failure_exits(self):
+        import app.main as main_module
+
+        with patch("app.main.service_config") as mock_sc:
+            mock_sc.init.return_value = False
+            with patch("app.main.config") as mock_config:
+                mock_config.validate.return_value = None
+                with patch("app.main.ProviderManager", side_effect=Exception("no tesseract")):
+                    with pytest.raises(SystemExit):
+                        async with main_module.lifespan(main_module.app):
+                            pass
+        main_module.provider_manager = None

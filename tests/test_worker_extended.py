@@ -1,17 +1,21 @@
-"""Extended tests for worker.py — covering more paths in process_single_image_with_tiers
-and process_job_with_retry."""
+"""Extended tests for worker.py — covering more paths in process_single_image_with_tiers,
+process_job_with_retry, worker_loop, and main."""
 
+import asyncio
 import copy
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.image_resolver import ImageResolverError
 from worker import (
+    main,
     process_job_with_retry,
     process_ocr_job,
     process_single_image_with_tiers,
     should_retry,
+    worker_loop,
 )
 
 
@@ -285,3 +289,133 @@ class TestShouldRetryExtended:
         with patch("worker.config") as mock_config:
             mock_config.OCR_MAX_ATTEMPTS = 3
             assert should_retry("redis_error", 1) is True
+
+
+class TestWorkerLoop:
+    """Tests for worker_loop."""
+
+    @pytest.mark.asyncio
+    async def test_processes_job_then_continues(self):
+        """Worker loop processes a dequeued job."""
+        mock_pm = MagicMock()
+        call_count = 0
+
+        def dequeue_side_effect(timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {"job_id": "j1", "schema_version": 1}
+            raise KeyboardInterrupt()
+
+        with patch("worker.queue_client") as mock_qc:
+            mock_qc.queue_name = "jarvis.ocr.jobs"
+            mock_qc.dequeue_job.side_effect = dequeue_side_effect
+            with patch("worker.process_job_with_retry", new_callable=AsyncMock) as mock_process:
+                await worker_loop(mock_pm, timeout=5)
+
+        mock_process.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_continues_on_no_jobs(self):
+        """Worker loop continues when no jobs available."""
+        mock_pm = MagicMock()
+        call_count = 0
+
+        def dequeue_side_effect(timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                return None
+            raise KeyboardInterrupt()
+
+        with patch("worker.queue_client") as mock_qc:
+            mock_qc.queue_name = "jarvis.ocr.jobs"
+            mock_qc.dequeue_job.side_effect = dequeue_side_effect
+            await worker_loop(mock_pm, timeout=5)
+
+        assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_keyboard_interrupt_stops_loop(self):
+        """KeyboardInterrupt should stop the worker loop."""
+        mock_pm = MagicMock()
+        with patch("worker.queue_client") as mock_qc:
+            mock_qc.queue_name = "jarvis.ocr.jobs"
+            mock_qc.dequeue_job.side_effect = KeyboardInterrupt()
+            await worker_loop(mock_pm, timeout=5)
+
+    @pytest.mark.asyncio
+    async def test_exception_continues_loop(self):
+        """Unexpected exceptions should be caught, sleep, then continue."""
+        mock_pm = MagicMock()
+        call_count = 0
+
+        def dequeue_side_effect(timeout):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("unexpected crash")
+            raise KeyboardInterrupt()
+
+        with patch("worker.queue_client") as mock_qc:
+            mock_qc.queue_name = "jarvis.ocr.jobs"
+            mock_qc.dequeue_job.side_effect = dequeue_side_effect
+            with patch("worker.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                await worker_loop(mock_pm, timeout=5)
+
+        mock_sleep.assert_called_once_with(1)
+
+
+class TestMain:
+    """Tests for main() entry point."""
+
+    @pytest.mark.asyncio
+    async def test_success(self):
+        """main() initializes and starts worker loop."""
+        with patch("worker.ProviderManager") as mock_pm_cls:
+            mock_pm_cls.return_value = MagicMock()
+            with patch("worker.queue_client") as mock_qc:
+                mock_qc.get_status.return_value = {"redis_connected": True}
+                mock_qc.queue_name = "jarvis.ocr.jobs"
+                with patch("worker.config") as mock_config:
+                    mock_config.OCR_MAX_TEXT_BYTES = 51200
+                    mock_config.OCR_MAX_ATTEMPTS = 3
+                    mock_config.get_enabled_tiers.return_value = ["tesseract"]
+                    with patch("worker.worker_loop", new_callable=AsyncMock) as mock_loop:
+                        await main()
+
+        mock_loop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_provider_init_failure_exits(self):
+        """main() exits when ProviderManager fails to initialize."""
+        with patch("worker.ProviderManager", side_effect=Exception("no providers")):
+            with pytest.raises(SystemExit) as exc_info:
+                await main()
+        assert exc_info.value.code == 1
+
+    @pytest.mark.asyncio
+    async def test_redis_not_connected_exits(self):
+        """main() exits when Redis is not available."""
+        with patch("worker.ProviderManager") as mock_pm_cls:
+            mock_pm_cls.return_value = MagicMock()
+            with patch("worker.queue_client") as mock_qc:
+                mock_qc.get_status.return_value = {"redis_connected": False}
+                with pytest.raises(SystemExit) as exc_info:
+                    await main()
+        assert exc_info.value.code == 1
+
+    @pytest.mark.asyncio
+    async def test_keyboard_interrupt_in_worker_loop(self):
+        """main() handles KeyboardInterrupt from worker_loop gracefully."""
+        with patch("worker.ProviderManager") as mock_pm_cls:
+            mock_pm_cls.return_value = MagicMock()
+            with patch("worker.queue_client") as mock_qc:
+                mock_qc.get_status.return_value = {"redis_connected": True}
+                mock_qc.queue_name = "jarvis.ocr.jobs"
+                with patch("worker.config") as mock_config:
+                    mock_config.OCR_MAX_TEXT_BYTES = 51200
+                    mock_config.OCR_MAX_ATTEMPTS = 3
+                    mock_config.get_enabled_tiers.return_value = ["tesseract"]
+                    with patch("worker.worker_loop", new_callable=AsyncMock, side_effect=KeyboardInterrupt):
+                        await main()
