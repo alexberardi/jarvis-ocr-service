@@ -22,6 +22,8 @@ from app.provider_manager import ProviderManager
 from app.exceptions import OCRProcessingException, ProviderUnavailableException
 from app.auth import verify_app_auth
 from app.queue_client import queue_client
+from app.services.settings_service import get_settings_service
+from jarvis_settings_client import create_combined_auth, create_settings_router, create_superuser_auth
 
 # Configure logging
 logging.basicConfig(
@@ -89,14 +91,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add settings router from shared library
-from jarvis_settings_client import create_settings_router, create_superuser_auth
-from app.services.settings_service import get_settings_service
-
 _auth_url = os.getenv("JARVIS_AUTH_BASE_URL", "http://localhost:7701")
 _settings_router = create_settings_router(
     service=get_settings_service(),
-    auth_dependency=verify_app_auth,
+    auth_dependency=create_combined_auth(_auth_url),
     write_auth_dependency=create_superuser_auth(_auth_url),
 )
 app.include_router(_settings_router, prefix="/settings", tags=["settings"])
