@@ -3,37 +3,37 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.jarvis.ocr.worker</string>
-    
+    <string>com.jarvis.ocr.service</string>
+
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jarvis/jarvis-ocr-service/run-worker.sh</string>
+        <string>__ROOT__/run.sh</string>
+        <string>--enable-redis-queue</string>
     </array>
-    
+
     <key>WorkingDirectory</key>
-    <string>/Users/jarvis/jarvis-ocr-service</string>
-    
+    <string>__ROOT__</string>
+
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
-    
+
     <key>RunAtLoad</key>
     <true/>
-    
+
     <key>KeepAlive</key>
     <true/>
-    
+
     <key>StandardOutPath</key>
-    <string>/Users/jarvis/jarvis-ocr-service/logs/worker.log</string>
-    
+    <string>/Users/__USER__/Library/Logs/jarvis-ocr/service-out.log</string>
+
     <key>StandardErrorPath</key>
-    <string>/Users/jarvis/jarvis-ocr-service/logs/worker.error.log</string>
-    
+    <string>/Users/__USER__/Library/Logs/jarvis-ocr/service-err.log</string>
+
     <key>ThrottleInterval</key>
     <integer>10</integer>
 </dict>
 </plist>
-

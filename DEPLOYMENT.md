@@ -75,50 +75,33 @@ screen -r ocr-worker
 
 ### Option 2: Launchd (macOS Native) - Recommended for Production
 
-**Automatic Setup (Recommended):**
-
-Use the provided setup script to install launchd services:
+**Deploy (Recommended):**
 
 ```bash
-./setup-launchd.sh
+./deploy-launchd.sh
 ```
 
 This script will:
-- Update plist files with your project path
+- Materialize plist templates with your project path and username
 - Install services to `~/Library/LaunchAgents/`
-- Load and start services automatically
-- Configure services to start on boot
+- Reload and start both service and worker via modern launchctl commands
+- Configure services to start on login (RunAtLoad) and auto-restart (KeepAlive)
 
-**Manual Setup:**
-
-If you prefer to set up manually:
-
-1. Edit the plist files (`com.jarvis.ocr.service.plist` and `com.jarvis.ocr.worker.plist`) to update the path
-2. Copy to LaunchAgents:
-   ```bash
-   cp com.jarvis.ocr.service.plist ~/Library/LaunchAgents/
-   cp com.jarvis.ocr.worker.plist ~/Library/LaunchAgents/
-   ```
-3. Load services:
-   ```bash
-   launchctl load ~/Library/LaunchAgents/com.jarvis.ocr.service.plist
-   launchctl load ~/Library/LaunchAgents/com.jarvis.ocr.worker.plist
-   ```
+Logs are written to `~/Library/Logs/jarvis-ocr/`.
 
 **Useful launchd commands:**
 ```bash
 # Check status
-launchctl list | grep jarvis
+launchctl print gui/$(id -u)/com.jarvis.ocr.service
+launchctl print gui/$(id -u)/com.jarvis.ocr.worker
 
-# Start/stop services
-launchctl start com.jarvis.ocr.service
-launchctl stop com.jarvis.ocr.service
-launchctl start com.jarvis.ocr.worker
-launchctl stop com.jarvis.ocr.worker
+# Force restart
+launchctl kickstart -k gui/$(id -u)/com.jarvis.ocr.service
+launchctl kickstart -k gui/$(id -u)/com.jarvis.ocr.worker
 
-# Unload services (to disable)
-launchctl unload ~/Library/LaunchAgents/com.jarvis.ocr.service.plist
-launchctl unload ~/Library/LaunchAgents/com.jarvis.ocr.worker.plist
+# Disable (stop and prevent auto-start)
+launchctl bootout gui/$(id -u)/com.jarvis.ocr.service
+launchctl bootout gui/$(id -u)/com.jarvis.ocr.worker
 ```
 
 ### Option 3: PM2 (Process Manager)
@@ -156,7 +139,7 @@ pm2 startup  # Follow instructions to enable auto-start
 
 3. **Restart Services:**
    - If using screen/tmux: Reattach and restart
-   - If using launchd: `launchctl unload` then `launchctl load`
+   - If using launchd: `./deploy-launchd.sh` (or `launchctl kickstart -k gui/$(id -u)/com.jarvis.ocr.service`)
    - If using PM2: `pm2 restart ocr-service ocr-worker`
 
 ### Zero-Downtime Deployment (Advanced)
@@ -201,7 +184,8 @@ The service provides health endpoints:
 
 **If using launchd:**
 ```bash
-tail -f ~/Library/Logs/com.jarvis.ocr.service.log
+tail -f ~/Library/Logs/jarvis-ocr/service-out.log
+tail -f ~/Library/Logs/jarvis-ocr/worker-out.log
 ```
 
 **If using PM2:**
