@@ -108,7 +108,7 @@ SETTINGS_DEFINITIONS: list[SettingDefinition] = [
         key="ocr.validation_model",
         category="ocr.processing",
         value_type="string",
-        default="lightweight",
+        default="live",
         description="LLM model used for output validation",
         env_fallback="OCR_VALIDATION_MODEL",
     ),

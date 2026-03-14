@@ -63,7 +63,7 @@ class Config:
     OCR_MIN_VALID_CHARS: int = int(os.getenv("OCR_MIN_VALID_CHARS", "3"))
     OCR_LANGUAGE_DEFAULT: str = os.getenv("OCR_LANGUAGE_DEFAULT", "en")
     OCR_MAX_ATTEMPTS: int = int(os.getenv("OCR_MAX_ATTEMPTS", "3"))
-    OCR_VALIDATION_MODEL: str = os.getenv("OCR_VALIDATION_MODEL", "lightweight")  # LLM model for validation
+    OCR_VALIDATION_MODEL: str = os.getenv("OCR_VALIDATION_MODEL", "live")  # LLM model for validation
     OCR_MIN_CONFIDENCE: Optional[float] = None  # Optional minimum confidence (informational only in v1)
     OCR_ENABLED_TIERS: str = os.getenv("OCR_ENABLED_TIERS", "tesseract,easyocr,paddleocr,rapidocr,apple_vision,llm_local,llm_cloud")
     

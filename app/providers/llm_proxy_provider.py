@@ -62,7 +62,7 @@ class LLMProxyProvider(OCRProvider):
         Initialize LLM Proxy provider.
 
         Args:
-            model_name: Model name to use ("vision" or "cloud")
+            model_name: Model name to use ("live" or "background")
         """
         self.model_name = model_name
         self.app_id = config.JARVIS_APP_ID
@@ -171,7 +171,7 @@ class LLMProxyProvider(OCRProvider):
         if not self.base_url:
             return True  # Can't validate, assume valid
         
-        # Use "full" model for validation
+        # Use "live" model for validation
         url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
         
         prompt = f"""Analyze this OCR-extracted text and determine if it contains valid, readable content or if it's garbled nonsense.
@@ -191,7 +191,7 @@ Respond with JSON:
                 response = await client.post(
                     url,
                     json={
-                        "model": "full",
+                        "model": "live",
                         "messages": [
                             {
                                 "role": "user",
@@ -304,10 +304,10 @@ The text field should contain all readable text from the image. If the image con
 
 
 class LLMProxyVisionProvider(LLMProxyProvider):
-    """LLM Proxy provider using Vision model (processes images one at a time)."""
-    
+    """LLM Proxy provider using background model (processes images one at a time)."""
+
     def __init__(self):
-        super().__init__("vision")
+        super().__init__("background")
     
     def process_batch(
         self,
@@ -343,10 +343,10 @@ class LLMProxyVisionProvider(LLMProxyProvider):
 
 
 class LLMProxyCloudProvider(LLMProxyProvider):
-    """LLM Proxy provider using Cloud model (can process multiple images at once)."""
-    
+    """LLM Proxy provider using background model (can process multiple images at once)."""
+
     def __init__(self):
-        super().__init__("cloud")
+        super().__init__("background")
     
     def process_batch(
         self,
