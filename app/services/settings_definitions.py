@@ -119,8 +119,9 @@ SETTINGS_DEFINITIONS: list[SettingDefinition] = [
         category="server",
         value_type="string",
         default="INFO",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR)",
+        description="Logging level",
         env_fallback="OCR_LOG_LEVEL",
+        options=["DEBUG", "INFO", "WARNING", "ERROR"],
     ),
 
     # Auth cache configuration
