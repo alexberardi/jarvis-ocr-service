@@ -319,7 +319,7 @@ class TestLLMQueueClientIntegration:
     def test_build_payload_structure(self):
         """Verify payload structure matches LLM proxy expectations."""
         client = LLMQueueClient(
-            llm_proxy_url="http://10.0.0.122:8000",
+            llm_proxy_url="http://127.0.0.1:8000",
             app_id="ocr-service",
             app_key="test-key"
         )
@@ -338,7 +338,7 @@ class TestLLMQueueClientIntegration:
             created_at="2026-02-03T12:00:00Z"
         )
 
-        payload = client._build_payload(state, "http://10.0.0.71:7031/internal/validation/callback")
+        payload = client._build_payload(state, "http://127.0.0.1:7031/internal/validation/callback")
 
         # Verify required fields for LLM proxy queue
         assert "job_id" in payload
@@ -348,7 +348,7 @@ class TestLLMQueueClientIntegration:
         assert "metadata" in payload
 
         # Verify callback structure
-        assert payload["callback"]["url"] == "http://10.0.0.71:7031/internal/validation/callback"
+        assert payload["callback"]["url"] == "http://127.0.0.1:7031/internal/validation/callback"
         assert payload["callback"]["method"] == "POST"
 
         # Verify metadata has all needed fields for callback

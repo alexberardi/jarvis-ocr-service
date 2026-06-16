@@ -23,7 +23,7 @@ from pathlib import Path
 import redis
 
 # Configuration
-REDIS_HOST = os.getenv("REDIS_HOST", "10.0.0.122")
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "redis")
 OCR_QUEUE = "jarvis.ocr.jobs"

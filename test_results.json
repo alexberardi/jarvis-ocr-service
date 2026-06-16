@@ -1,7 +1,7 @@
 {
   "timestamp": "2026-02-05T00:26:49.317778",
   "config": {
-    "redis_host": "10.0.0.122",
+    "redis_host": "127.0.0.1",
     "redis_port": 6379,
     "ocr_queue": "jarvis.ocr.jobs",
     "reply_queue": "jarvis.ocr.test.results"

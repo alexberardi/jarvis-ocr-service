@@ -14,7 +14,7 @@ class TestLLMQueueClient:
     @pytest.fixture
     def client(self):
         return LLMQueueClient(
-            llm_proxy_url="http://10.0.0.122:8000",
+            llm_proxy_url="http://127.0.0.1:8000",
             app_id="ocr-service",
             app_key="test-key"
         )
@@ -38,7 +38,7 @@ class TestLLMQueueClient:
 
     def test_build_enqueue_payload_has_required_fields(self, client, sample_state):
         """Payload should have job_id, job_type, request, callback, metadata."""
-        callback_url = "http://10.0.0.71:7031/internal/validation/callback"
+        callback_url = "http://127.0.0.1:7031/internal/validation/callback"
         payload = client._build_payload(sample_state, callback_url)
 
         assert payload["job_type"] == "chat_completion"
@@ -49,7 +49,7 @@ class TestLLMQueueClient:
 
     def test_build_enqueue_payload_callback_url(self, client, sample_state):
         """Callback URL should point to OCR service."""
-        callback_url = "http://10.0.0.71:7031/internal/validation/callback"
+        callback_url = "http://127.0.0.1:7031/internal/validation/callback"
         payload = client._build_payload(sample_state, callback_url)
 
         assert payload["callback"]["url"] == callback_url
@@ -117,13 +117,13 @@ class TestLLMQueueClient:
                 json=lambda: {"accepted": True, "job_id": "val-789"}
             )
 
-            callback_url = "http://10.0.0.71:7031/internal/validation/callback"
+            callback_url = "http://127.0.0.1:7031/internal/validation/callback"
             job_id = await client.enqueue(sample_state, callback_url)
 
             mock_post.assert_called_once()
             call_args = mock_post.call_args
             call_url = call_args[0][0]
-            assert call_url == "http://10.0.0.122:8000/internal/queue/enqueue"
+            assert call_url == "http://127.0.0.1:8000/internal/queue/enqueue"
 
     @pytest.mark.asyncio
     async def test_enqueue_validation_includes_auth_headers(self, client, sample_state):
@@ -189,6 +189,6 @@ class TestLLMQueueClient:
 
     def test_client_stores_configuration(self, client):
         """Client should store configuration values."""
-        assert client.llm_proxy_url == "http://10.0.0.122:8000"
+        assert client.llm_proxy_url == "http://127.0.0.1:8000"
         assert client.app_id == "ocr-service"
         assert client.app_key == "test-key"
