@@ -64,6 +64,11 @@ class TestResolveImage:
 class TestResolveLocalPath:
     """Tests for _resolve_local_path."""
 
+    @pytest.fixture(autouse=True)
+    def _image_root(self, tmp_path, monkeypatch):
+        # Confine the resolver to the test's tmp dir instead of /data/images.
+        monkeypatch.setattr("app.image_resolver._IMAGE_ROOT", tmp_path)
+
     def test_success_absolute_path(self, tmp_path):
         img = tmp_path / "image.jpg"
         img.write_bytes(b"JPEG_DATA")
@@ -71,9 +76,27 @@ class TestResolveLocalPath:
         assert data == b"JPEG_DATA"
         assert ct == "image/jpeg"
 
+    def test_success_relative_path(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "image.png").write_bytes(b"PNG")
+        data, ct = _resolve_local_path("sub/image.png")
+        assert data == b"PNG"
+        assert ct == "image/png"
+
     def test_file_not_found(self):
         with pytest.raises(ImageResolverError, match="not found"):
-            _resolve_local_path("/nonexistent/path/image.png")
+            _resolve_local_path("missing.png")
+
+    def test_absolute_path_outside_root_rejected(self, tmp_path):
+        with pytest.raises(ImageResolverError, match="escapes"):
+            _resolve_local_path("/etc/passwd")
+
+    def test_parent_traversal_rejected(self, tmp_path):
+        # A ../ escape out of the image root must be refused, not read.
+        secret = tmp_path.parent / "secret.png"
+        secret.write_bytes(b"TOPSECRET")
+        with pytest.raises(ImageResolverError, match="escapes"):
+            _resolve_local_path("../secret.png")
 
     def test_directory_not_file(self, tmp_path):
         d = tmp_path / "subdir"
@@ -182,15 +205,31 @@ class TestResolveMinio:
         mock_fn.assert_called_once_with("s3://bucket/key.png")
 
 
+import socket
+
+
+def _addrinfo_for(ip: str):
+    def _f(*args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (ip, 443))]
+    return _f
+
+
+def _ok_response(content=b"IMAGE_BYTES", content_type="image/jpeg"):
+    resp = MagicMock()
+    resp.content = content
+    resp.headers = {"Content-Type": content_type}
+    resp.is_redirect = False
+    resp.is_permanent_redirect = False
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
 class TestResolveHttps:
     """Tests for _resolve_https."""
 
     def test_success(self):
-        mock_resp = MagicMock()
-        mock_resp.content = b"IMAGE_BYTES"
-        mock_resp.headers = {"Content-Type": "image/jpeg"}
-        mock_resp.raise_for_status = MagicMock()
-        with patch("app.image_resolver.requests.get", return_value=mock_resp):
+        with patch("app.image_resolver.socket.getaddrinfo", _addrinfo_for("93.184.216.34")), \
+             patch("app.image_resolver.requests.get", return_value=_ok_response()):
             data, ct = _resolve_https("https://example.com/img.jpg")
         assert data == b"IMAGE_BYTES"
         assert ct == "image/jpeg"
@@ -198,8 +237,44 @@ class TestResolveHttps:
     def test_request_exception(self):
         import requests as req
 
-        with patch("app.image_resolver.requests.get", side_effect=req.exceptions.ConnectionError("fail")):
+        with patch("app.image_resolver.socket.getaddrinfo", _addrinfo_for("93.184.216.34")), \
+             patch("app.image_resolver.requests.get", side_effect=req.exceptions.ConnectionError("fail")):
             with pytest.raises(ImageResolverError, match="Failed to fetch"):
+                _resolve_https("https://example.com/img.jpg")
+
+    def test_blocks_loopback(self):
+        with patch("app.image_resolver.socket.getaddrinfo", _addrinfo_for("127.0.0.1")):
+            with pytest.raises(ImageResolverError, match="SSRF guard"):
+                _resolve_https("http://localhost/img.jpg")
+
+    def test_blocks_private_network(self):
+        with patch("app.image_resolver.socket.getaddrinfo", _addrinfo_for("10.1.2.3")):
+            with pytest.raises(ImageResolverError, match="SSRF guard"):
+                _resolve_https("https://intranet.example/img.jpg")
+
+    def test_blocks_cloud_metadata(self):
+        # 169.254.169.254 (link-local) — the classic SSRF metadata target.
+        with patch("app.image_resolver.socket.getaddrinfo", _addrinfo_for("169.254.169.254")):
+            with pytest.raises(ImageResolverError, match="SSRF guard"):
+                _resolve_https("http://metadata.example/latest/meta-data/")
+
+    def test_rejects_non_http_scheme(self):
+        with pytest.raises(ImageResolverError, match="scheme"):
+            _resolve_https("file:///etc/passwd")
+
+    def test_redirect_to_internal_is_blocked(self):
+        def addr(host, *args, **kwargs):
+            ip = "127.0.0.1" if host == "internal.local" else "93.184.216.34"
+            return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (ip, 443))]
+
+        redirect = MagicMock()
+        redirect.is_redirect = True
+        redirect.is_permanent_redirect = False
+        redirect.headers = {"Location": "https://internal.local/secret"}
+
+        with patch("app.image_resolver.socket.getaddrinfo", side_effect=addr), \
+             patch("app.image_resolver.requests.get", return_value=redirect):
+            with pytest.raises(ImageResolverError, match="SSRF guard"):
                 _resolve_https("https://example.com/img.jpg")
 
 

@@ -1,7 +1,9 @@
 """Image reference resolver for different image sources."""
 
+import ipaddress
 import os
 import logging
+import socket
 import urllib.parse
 from typing import Tuple
 from pathlib import Path
@@ -16,10 +18,57 @@ from app.config import config
 
 logger = logging.getLogger(__name__)
 
+# Local images must live under this root; anything resolving outside it (an
+# absolute path or ``../`` traversal) is rejected so a caller can't read
+# arbitrary container files (secrets, /etc/passwd). Overridable for tests.
+_IMAGE_ROOT = Path(os.getenv("OCR_IMAGE_ROOT", "/data/images"))
+
+# Cap redirects when fetching a remote image so the SSRF host-check can't be
+# skipped by bouncing through a public URL into an internal one.
+_MAX_HTTP_REDIRECTS = 3
+
 
 class ImageResolverError(Exception):
     """Raised when an image cannot be resolved."""
     pass
+
+
+def _assert_public_http_url(url: str) -> None:
+    """Reject non-HTTP schemes and hosts that resolve to a non-public address.
+
+    Blocks the SSRF class where a caller-supplied URL points the fetcher at
+    loopback / RFC1918 / link-local / reserved space (localhost services, the
+    cloud metadata endpoint, etc.). Every DNS answer for the host must be public.
+    (A determined attacker could still DNS-rebind between this check and the
+    request; closing that fully would require pinning the connection to the
+    validated IP — out of scope for this guard.)
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ImageResolverError(f"Unsupported URL scheme: {parsed.scheme or '(none)'}")
+    host = parsed.hostname
+    if not host:
+        raise ImageResolverError("Image URL has no host")
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise ImageResolverError(f"Could not resolve image host {host}: {exc}")
+
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise ImageResolverError(
+                f"Refusing to fetch image from non-public address ({ip}) — SSRF guard"
+            )
 
 
 def resolve_image(image_ref: dict) -> Tuple[bytes, str]:
@@ -72,14 +121,22 @@ def _resolve_local_path(path: str) -> Tuple[bytes, str]:
         ImageResolverError: If file cannot be read
     """
     try:
-        # If path is relative, prepend /data/images/ (container mount root)
+        root = _IMAGE_ROOT.resolve()
+        # Relative paths are under the image root; absolute paths are taken as-is
+        # but must STILL land inside the root (below) so an absolute path or a
+        # ``../`` escape can't read arbitrary container files.
         if not os.path.isabs(path):
-            resolved_path = Path("/data/images") / path
+            resolved_path = (root / path).resolve()
         else:
-            resolved_path = Path(path)
-        
-        resolved_path = resolved_path.resolve()
-        
+            resolved_path = Path(path).resolve()
+
+        try:
+            resolved_path.relative_to(root)
+        except ValueError:
+            raise ImageResolverError(
+                f"Image path escapes the allowed image directory: {path}"
+            )
+
         # Check if file exists
         if not resolved_path.exists():
             raise ImageResolverError(f"Image file not found: {path}")
@@ -227,16 +284,28 @@ def _resolve_https(url: str) -> Tuple[bytes, str]:
     Raises:
         ImageResolverError: If image cannot be resolved
     """
+    current = url
     try:
-        response = requests.get(url, timeout=30, stream=True)
-        response.raise_for_status()
-        
-        image_bytes = response.content
-        content_type = response.headers.get("Content-Type", "image/png")
-        
-        logger.debug(f"Resolved HTTPS URL: {url} -> {len(image_bytes)} bytes, {content_type}")
-        return image_bytes, content_type
-        
+        # Follow redirects manually so the SSRF host-check runs on EVERY hop —
+        # requests' automatic redirects would bypass it (public → internal bounce).
+        for _ in range(_MAX_HTTP_REDIRECTS + 1):
+            _assert_public_http_url(current)
+            response = requests.get(current, timeout=30, stream=True, allow_redirects=False)
+            if response.is_redirect or response.is_permanent_redirect:
+                location = response.headers.get("Location")
+                if not location:
+                    raise ImageResolverError(f"Redirect without a location fetching {url}")
+                current = urllib.parse.urljoin(current, location)
+                continue
+
+            response.raise_for_status()
+            image_bytes = response.content
+            content_type = response.headers.get("Content-Type", "image/png")
+            logger.debug(f"Resolved HTTPS URL: {url} -> {len(image_bytes)} bytes, {content_type}")
+            return image_bytes, content_type
+
+        raise ImageResolverError(f"Too many redirects fetching image from {url}")
+
     except requests.exceptions.RequestException as e:
         raise ImageResolverError(f"Failed to fetch image from {url}: {str(e)}")
     except Exception as e:
