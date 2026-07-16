@@ -3289,26 +3289,29 @@ pyobjc-framework-Cocoa = ">=12.1"
 
 [[package]]
 name = "pyobjc-framework-vision"
-version = "10.3.2"
+version = "11.1"
 description = "Wrappers for the framework Vision on macOS"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["optional"]
 markers = "sys_platform == \"darwin\""
 files = [
-    {file = "pyobjc_framework_Vision-10.3.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:62efeeef9317d6014b26e4476de45f4b2853970272e1a236e45044ad8ac8b2fb"},
-    {file = "pyobjc_framework_Vision-10.3.2-cp36-abi3-macosx_10_13_universal2.whl", hash = "sha256:cae03536f12ed5764ecfdcf9cf96b37e577cc6e8c466aeb23a6aa0682b45ae39"},
-    {file = "pyobjc_framework_Vision-10.3.2-cp36-abi3-macosx_10_9_universal2.whl", hash = "sha256:ba5ccd0bf12c29c2cdf1b52405c395929b5802e9120476b8e9a01af691ab33dc"},
-    {file = "pyobjc_framework_Vision-10.3.2-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:2b7edc178ebeb621ba9a239449f8ae1fc6b643f60914ff2be4dad69e901ca331"},
-    {file = "pyobjc_framework_Vision-10.3.2-cp36-abi3-macosx_11_0_universal2.whl", hash = "sha256:1083e23ee4dae7cca8e2d094b1995909690b277c967975227d3395222c0c7377"},
-    {file = "pyobjc_framework_vision-10.3.2.tar.gz", hash = "sha256:5cfea4a750657e2c8e7c8b0c26c7aac2578ba09ab8f66ffa0e2ee632410cacf3"},
+    {file = "pyobjc_framework_vision-11.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:3c6f46df632096f070e16ba902a483fcb95c01fe12856a071bc2b25ac4a89bf3"},
+    {file = "pyobjc_framework_vision-11.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:bfbde43c9d4296e1d26548b6d30ae413e2029425968cd8bce96d3c5a735e8f2c"},
+    {file = "pyobjc_framework_vision-11.1-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:df076c3e3e672887182953efc934c1f9683304737e792ec09a29bfee90d2e26a"},
+    {file = "pyobjc_framework_vision-11.1-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:1e5617e37dd2a7cff5e69e9aab039ea74b39ccdc528f6c828f2b60c1254e61e5"},
+    {file = "pyobjc_framework_vision-11.1-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:dfd148a6df30ac70a9c41dd90a6c8f8c7f339bd9ca6829629a902f272e02b6b4"},
+    {file = "pyobjc_framework_vision-11.1-cp314-cp314-macosx_11_0_universal2.whl", hash = "sha256:d1f8fdccc6135fdbfd66d8f21240d6c84465cb8e116a8e5b43601aed020051e5"},
+    {file = "pyobjc_framework_vision-11.1-cp314-cp314t-macosx_11_0_universal2.whl", hash = "sha256:d00830c71a30fc893b3c5ee65119c7e5e5a95a16af53b8e56a0e58cff57e3b56"},
+    {file = "pyobjc_framework_vision-11.1-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:25d2d42edc7459b010ec87a0c5428d12fe5d62dfa95cd34fb71f716f2e4d6b95"},
+    {file = "pyobjc_framework_vision-11.1.tar.gz", hash = "sha256:26590512ee7758da3056499062a344b8a351b178be66d4b719327884dde4216b"},
 ]
 
 [package.dependencies]
-pyobjc-core = ">=10.3.2"
-pyobjc-framework-Cocoa = ">=10.3.2"
-pyobjc-framework-CoreML = ">=10.3.2"
-pyobjc-framework-Quartz = ">=10.3.2"
+pyobjc-core = ">=11.1"
+pyobjc-framework-Cocoa = ">=11.1"
+pyobjc-framework-CoreML = ">=11.1"
+pyobjc-framework-Quartz = ">=11.1"
 
 [[package]]
 name = "pyreadline3"
@@ -5734,4 +5737,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "eec868e266e7885f5940c3f756426d48ec346693f3ef9c127ec22e7ca2105845"
+content-hash = "0a0ca24cae9ecdf2543766e4d64a130db6c8512de2dcf62e127036df6592c3e5"
