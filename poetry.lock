@@ -501,6 +501,21 @@ humanfriendly = ">=9.1"
 cron = ["capturer (>=2.4)"]
 
 [[package]]
+name = "croniter"
+version = "6.2.4"
+description = "croniter provides iteration for datetime object with cron like format"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "croniter-6.2.4-py3-none-any.whl", hash = "sha256:8ef3d544107a5c05a150a2d78f8bf5a8eb9c5c4d93405a736b824109574e3f4d"},
+    {file = "croniter-6.2.4.tar.gz", hash = "sha256:fc124f751b1b04805c2a04b061898b436b45ab2320b045e1e052ea895de65189"},
+]
+
+[package.dependencies]
+python-dateutil = "*"
+
+[[package]]
 name = "cython"
 version = "3.2.3"
 description = "The Cython compiler for writing C extensions in the Python language."
@@ -3912,19 +3927,20 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "rq"
-version = "1.16.2"
+version = "2.8.0"
 description = "RQ is a simple, lightweight, library for creating background jobs, and processing them."
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "rq-1.16.2-py3-none-any.whl", hash = "sha256:52e619f6cb469b00e04da74305045d244b75fecb2ecaa4f26422add57d3c5f09"},
-    {file = "rq-1.16.2.tar.gz", hash = "sha256:5c5b9ad5fbaf792b8fada25cc7627f4d206a9a4455aced371d4f501cc3f13b34"},
+    {file = "rq-2.8.0-py3-none-any.whl", hash = "sha256:49d87c8d0068b890e83052050ffd18be328339ae00c9c6d5dbf2702eb06107d2"},
+    {file = "rq-2.8.0.tar.gz", hash = "sha256:dd75b5a19016efd235143058e82fdc5658a0c1e9a76664cc7d02f721c7308a4a"},
 ]
 
 [package.dependencies]
 click = ">=5"
-redis = ">=3.5"
+croniter = "*"
+redis = ">=3.5,<6 || >6"
 
 [[package]]
 name = "s3transfer"
@@ -5773,4 +5789,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "82bf2ea07c0bdd0aab6b23c2622c55393d4b607d457020f38f8250dc347c7991"
+content-hash = "00a7037dd727bd7b3631e36525b05b702d5a68985b8b0645e3475c0c28a9336a"
