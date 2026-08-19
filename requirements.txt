@@ -7,7 +7,7 @@ pytesseract==0.3.13
 numpy==2.0.2
 httpx==0.28.1
 python-dotenv==1.2.1
-redis==5.0.1
+redis==7.0.1
 sqlalchemy>=2.0.23
 alembic>=1.12.1
 psycopg2-binary>=2.9.9
