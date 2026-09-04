@@ -1,5 +1,6 @@
 """Image reference resolver for different image sources."""
 
+import io
 import ipaddress
 import os
 import logging
@@ -7,6 +8,8 @@ import socket
 import urllib.parse
 from typing import Tuple
 from pathlib import Path
+
+from PIL import Image, ImageOps
 
 # Required dependencies for S3/minio/HTTPS support
 import boto3
@@ -26,6 +29,9 @@ _IMAGE_ROOT = Path(os.getenv("OCR_IMAGE_ROOT", "/data/images"))
 # Cap redirects when fetching a remote image so the SSRF host-check can't be
 # skipped by bouncing through a public URL into an internal one.
 _MAX_HTTP_REDIRECTS = 3
+
+# EXIF tag 274 is Orientation. Values 0/1 mean "already upright".
+_EXIF_ORIENTATION_TAG = 274
 
 
 class ImageResolverError(Exception):
@@ -95,15 +101,50 @@ def resolve_image(image_ref: dict) -> Tuple[bytes, str]:
         raise ImageResolverError("PDF files are not supported in v1 (error code: unsupported_media)")
     
     if kind == "local_path":
-        return _resolve_local_path(value)
+        image_bytes, content_type = _resolve_local_path(value)
     elif kind == "s3":
-        return _resolve_s3(value)
+        image_bytes, content_type = _resolve_s3(value)
     elif kind == "minio":
-        return _resolve_minio(value)
+        image_bytes, content_type = _resolve_minio(value)
     elif kind == "db":
         raise ImageResolverError("Image kind 'db' is not yet supported in v1")
     else:
         raise ImageResolverError(f"Unknown image kind: {kind}")
+
+    return _normalize_orientation(image_bytes, content_type), content_type
+
+
+def _normalize_orientation(image_bytes: bytes, content_type: str) -> bytes:
+    """Bake the EXIF orientation tag into the pixel data.
+
+    Cameras record rotation as metadata rather than rotating the buffer: a photo
+    taken on a portrait-held phone arrives tagged orientation=6 with landscape
+    pixels. Every provider here hands raw pixels to its engine, so an untransposed
+    photo reaches the recogniser sideways. Normalising once, centrally, means no
+    provider has to know about EXIF.
+
+    Images that are already upright are returned byte-for-byte unchanged, so
+    nothing is re-encoded (and no JPEG generation is lost) without cause.
+    """
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+        if image.getexif().get(_EXIF_ORIENTATION_TAG, 1) in (0, 1):
+            return image_bytes
+
+        transposed = ImageOps.exif_transpose(image)
+        image_format = image.format or ("PNG" if content_type == "image/png" else "JPEG")
+        if image_format == "JPEG" and transposed.mode not in ("RGB", "L"):
+            transposed = transposed.convert("RGB")
+
+        buffer = io.BytesIO()
+        transposed.save(buffer, format=image_format, **({"quality": 95} if image_format == "JPEG" else {}))
+        logger.debug(f"Normalized image orientation ({image.size} -> {transposed.size})")
+        return buffer.getvalue()
+    except Exception as exc:
+        # Orientation is an enhancement, never a gate: a sideways image still
+        # produces some text, whereas raising here would fail the whole job.
+        logger.warning(f"Could not normalize image orientation, using original: {exc}")
+        return image_bytes
 
 
 def _resolve_local_path(path: str) -> Tuple[bytes, str]:

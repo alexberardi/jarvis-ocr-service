@@ -63,13 +63,22 @@ class AppleVisionProvider(OCRProvider):
         # Create text recognition request
         request = VNRecognizeTextRequest.alloc().init()
         
-        # Set recognition level (accurate is better, fast is faster)
-        request.setRecognitionLevel_(1)  # 0 = fast, 1 = accurate
-        
-        # Perform request
-        error = handler.performRequests_error_([request], None)
-        
-        if error:
+        # Vision's constants are Accurate = 0, Fast = 1. On a cookbook page,
+        # level 1 returns a single 8-character observation where level 0 returns
+        # 94 observations totalling ~3000 characters, so the fast path is not a
+        # speed/quality trade-off here -- it is unusable for documents.
+        request.setRecognitionLevel_(0)
+        request.setUsesLanguageCorrection_(True)
+        if language_hints:
+            request.setRecognitionLanguages_(language_hints)
+
+        # performRequests:error: takes an NSError** out-parameter, so PyObjC
+        # returns a (success, error) tuple -- (True, None) on success. Assigning
+        # the whole tuple to `error` and testing its truthiness raised on every
+        # successful call, which silently took this provider out of the tier chain.
+        success, error = handler.performRequests_error_([request], None)
+
+        if not success or error is not None:
             raise RuntimeError(f"Apple Vision OCR failed: {error}")
         
         # Extract results

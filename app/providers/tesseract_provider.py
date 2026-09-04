@@ -35,8 +35,17 @@ class TesseractProvider(OCRProvider):
         """Process image with Tesseract."""
         start = time.time()
         
-        # Load image
+        # Load image.
+        #
+        # pytesseract only accepts a plain single-frame Image; it rejects
+        # container types such as MpoImageFile -- which is exactly what an iPhone
+        # photo decodes to -- with "Unsupported image format/type". Collapsing to
+        # a single RGB frame here costs nothing and keeps tier 1 from failing on
+        # the most common input this service receives.
         image = Image.open(io.BytesIO(image_bytes))
+        if image.format == "MPO" or getattr(image, "n_frames", 1) > 1:
+            image.seek(0)
+            image = image.convert("RGB")
         
         # Build language string (default to eng)
         lang = "eng"
