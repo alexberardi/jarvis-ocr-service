@@ -6,17 +6,27 @@ invariants in this repo's `CLAUDE.md` cite.
 
 ## What is here, and what is not
 
-The report and the harness are committed. **The corpus and the ground truth are
-not**, deliberately:
+`corpus/` holds the five source images: photographs of printed cookbook pages,
+straight off an iPhone. They are the input every number in `BENCHMARK.md` was
+measured against, committed full size (~16 MB total) rather than downscaled,
+because shrinking them would change the results they are supposed to reproduce.
 
-- **The images** are five personal photos of pages from a copyrighted cookbook.
-  They are not ours to redistribute, and they are not in any repo.
-- **`ground_truth.json`** is a hand transcription of those pages — ingredient
-  lines, titles and instruction paragraphs. Same reason.
+They are photographs of a copyrighted cookbook, included here as benchmark
+fixtures. If that ever becomes a problem, note that removing them needs a git
+history rewrite, not a delete commit.
 
-So `score.py` cannot be run as-is from a clean checkout. That is a real
-limitation and it is stated here rather than discovered. To reproduce you need
-your own corpus of document photos plus a matching `ground_truth.json`:
+`upright/` is **not** stored — generate it with `make_upright.py` (below). It is
+derived from `corpus/` by the service's own `_normalize_orientation`, so if that
+regresses the benchmark moves with it, which is the signal you want.
+
+**`ground_truth.json` is still missing**, and it is the half that `score.py`
+needs. It is a hand transcription of these pages — titles, ingredient lines and
+instruction paragraphs — so it reproduces far more of the book's actual text
+than a photograph does, and it was left out for that reason.
+
+So the providers can be **run** against this corpus from a clean checkout, but
+their output cannot be **scored** without supplying a ground truth. That is a
+real limitation, stated here rather than discovered. The format:
 
 ```json
 {
@@ -35,11 +45,22 @@ Only `ingredients` and `title` are scored, so the rest can be left empty.
 ## Running it
 
 ```bash
-run_one.py <provider> <set> <image_dir> <out_dir>   # one provider per process
-run_paddle3.py <set> <image_dir> <out_dir> [device] # paddleocr 3.x, isolated venv
-run_rapid_gpu.py <set> <image_dir> <out_dir> [name] [cuda]
-score.py                                            # scores.json + the report tables
+mkdir -p raw text
+python make_upright.py corpus upright         # derive the upright set
+
+# `upright` and `sideways` are just set labels; corpus/ IS the sideways set.
+python run_one.py tesseract    upright  upright .
+python run_one.py tesseract    sideways corpus  .
+python run_paddle3.py          upright  upright . gpu    # 3.x, isolated venv
+python run_rapid_gpu.py        upright  upright . rapidocr_gpu cuda
+python score.py                               # needs ground_truth.json
 ```
+
+The two sets are the experiment: `corpus/` is what the camera actually wrote
+(EXIF orientation = 6, landscape pixels, "rotate 90 CW" tag), and `upright/` is
+the same photos with that rotation baked in. Comparing them is how the report
+quantifies what the orientation fix bought — +26 points for easyocr, and the
+difference between working and not for tesseract.
 
 **One provider per process is deliberate.** easyocr peaks at 14 GB on a 12 MP
 image. An earlier version of this benchmark ran the providers as parallel agents
