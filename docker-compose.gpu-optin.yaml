@@ -1,0 +1,52 @@
+# GPU overlay — apply on top of docker-compose.dev.yaml.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yaml -f docker-compose.gpu.yaml up -d --build
+#
+# NOT auto-applied. Named *-optin so `./jarvis` does NOT pick it up: its
+# _get_compose_flags() adds any file literally called docker-compose.gpu.yaml on
+# an NVIDIA host (jarvis:409), and on a shared GPU that is the wrong default.
+#
+# MEASURED, 2026-09-03, RTX 3080 Ti / 12GB, against benchmarks/ocr-providers/corpus
+# (5 x 12MP iPhone photos of cookbook pages):
+#
+#   rapidocr on CUDA   0.43s/image warm, 5/5 succeeded
+#   rapidocr on CPU    1.09-1.98s/image warm, 5/5 succeeded
+#
+# so roughly 2.5-4.5x, and worth having where the GPU has room. Peak VRAM was
+# ~1.6GB including CUDA context.
+#
+# It is NOT auto-applied because that headroom is the catch. rapidocr hardcodes
+# arena_extend_strategy=kNextPowerOfTwo and cudnn_conv_algo_search=EXHAUSTIVE for
+# CUDA (rapidocr_onnxruntime's OrtInferSession._get_ep_list, not configurable),
+# so it allocates greedily rather than to fit. On the dev box, where
+# jarvis-llm-proxy-api's model service holds ~6.2GB and whisper ~0.9GB of the
+# 12GB card, every image failed with
+#   "Failed to allocate memory for requested buffer of size 5898240"
+# -- an OOM on 5.6MB, because the card was already full. The LLM is the better
+# use of that VRAM, so dev runs CPU.
+#
+# Before enabling on prod, check there is comfortably more than ~1.6GB free:
+#   nvidia-smi --query-gpu=memory.free --format=csv
+# The greedy arena means "just enough" is not enough; leave headroom.
+#
+# Enable with:
+#   docker compose -f docker-compose.dev.yaml -f docker-compose.gpu-optin.yaml up -d --build
+
+services:
+  ocr-server:
+    # Dockerfile.gpu swaps onnxruntime for onnxruntime-gpu. Without it the CUDA
+    # flags below are accepted and silently ignored — devices attached, provider
+    # list still ['AzureExecutionProvider', 'CPUExecutionProvider'].
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    environment:
+      - OCR_USE_GPU=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

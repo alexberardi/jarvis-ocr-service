@@ -55,7 +55,7 @@ class TestEasyOCRProcess:
         assert result.blocks[0].confidence == pytest.approx(0.91)
         assert result.duration_ms >= 0
 
-    def test_joins_multiple_detections_with_spaces(self):
+    def test_each_detection_becomes_its_own_line(self):
         provider = self._provider([
             (BBOX_POINTS, "Hello", 0.9),
             (BBOX_POINTS, "World", 0.8),
@@ -64,7 +64,10 @@ class TestEasyOCRProcess:
         with patch("app.providers.easyocr_provider.EASYOCR_AVAILABLE", True):
             result = provider.process(_png_bytes())
 
-        assert result.text == "Hello World"
+        # A detected region is a text LINE. Joining with spaces collapsed a
+        # recipe into one run-on line and the ingredient list stopped being a
+        # list -- which the recipes quality gate reads as an unreadable scan.
+        assert result.text == "Hello\nWorld"
         assert len(result.blocks) == 2
 
     def test_return_boxes_false_still_returns_text(self):
@@ -257,7 +260,7 @@ class TestAppleVisionProcess:
         assert result.blocks[0].bbox == [10.0, 20.0, 50.0, 20.0]
         assert result.blocks[0].confidence == pytest.approx(0.95)
 
-    def test_joins_observations_with_spaces(self):
+    def test_each_observation_becomes_its_own_line(self):
         from app.providers.apple_vision_provider import AppleVisionProvider
 
         observations = [
@@ -268,7 +271,10 @@ class TestAppleVisionProcess:
         with self._patched_vision(observations):
             result = AppleVisionProvider().process(_png_bytes())
 
-        assert result.text == "Hello World"
+        # A detected region is a text LINE. Joining with spaces collapsed a
+        # recipe into one run-on line and the ingredient list stopped being a
+        # list -- which the recipes quality gate reads as an unreadable scan.
+        assert result.text == "Hello\nWorld"
         assert len(result.blocks) == 2
 
     def test_return_boxes_false_still_returns_text(self):
@@ -326,3 +332,64 @@ class TestAppleVisionProcess:
 
         with patch("app.providers.apple_vision_provider.APPLE_VISION_AVAILABLE", True):
             assert AppleVisionProvider().is_available() is True
+
+
+class TestProvidersImportWithoutOptionalDeps:
+    """The provider package must import on a host that installs only some engines.
+
+    app/providers/__init__.py imports every provider eagerly, so one unguarded
+    top-level import makes the whole package -- and therefore provider_manager,
+    and therefore worker.py -- unimportable. That is what happened on the macOS
+    host deployed to run Apple Vision alone: no pytesseract, no worker.
+    """
+
+    def test_tesseract_provider_reports_unavailable_without_the_wrapper(self):
+        from app.providers.tesseract_provider import TesseractProvider
+
+        with patch("app.providers.tesseract_provider.PYTESSERACT_AVAILABLE", False):
+            assert TesseractProvider().is_available() is False
+
+    def test_tesseract_provider_refuses_to_process_without_the_wrapper(self):
+        # Rather than an AttributeError on a None module, which reads as a bug
+        # somewhere else entirely.
+        from app.providers.tesseract_provider import TesseractProvider
+
+        with patch("app.providers.tesseract_provider.PYTESSERACT_AVAILABLE", False):
+            with pytest.raises(RuntimeError, match="not available"):
+                TesseractProvider().process(b"\x89PNG")
+
+    def test_every_provider_module_guards_its_engine_import(self):
+        # Read the source rather than uninstalling packages: the failure is a
+        # bare top-level `import <engine>`, and that is visible statically.
+        import ast
+        from pathlib import Path
+
+        engines = {
+            "pytesseract",
+            "easyocr",
+            "paddleocr",
+            "rapidocr_onnxruntime",
+            "Vision",
+            "Quartz",
+            "Foundation",
+            "CoreFoundation",
+        }
+        provider_dir = Path(__file__).resolve().parents[1] / "app" / "providers"
+
+        unguarded = []
+        for path in sorted(provider_dir.glob("*_provider.py")):
+            tree = ast.parse(path.read_text())
+            for node in tree.body:  # top level only; guarded imports sit inside Try
+                names = []
+                if isinstance(node, ast.Import):
+                    names = [a.name.split(".")[0] for a in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    names = [node.module.split(".")[0]]
+                for name in names:
+                    if name in engines:
+                        unguarded.append(f"{path.name}: {name}")
+
+        assert not unguarded, (
+            "Unguarded engine import(s); the providers package will fail to import "
+            f"on a host without them: {unguarded}"
+        )

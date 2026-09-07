@@ -109,7 +109,14 @@ class AppleVisionProvider(OCRProvider):
                     confidence=float(confidence)
                 ))
         
-        full_text = " ".join(text_parts)
+        # Newline, not space. Each text_part is one DETECTED LINE, and joining
+        # them with spaces collapses a recipe into a single run-on line: the
+        # ingredient list stops being a list. Downstream consumers read that
+        # structure -- jarvis-recipes-server's quality gate hard-fails on
+        # line_count < 10, so every image OCR'd by a block-based provider was
+        # rejected as unreadable no matter how clean the scan was. Tesseract
+        # already returns line-separated page text; this makes the rest agree.
+        full_text = "\n".join(text_parts)
         duration_ms = (time.time() - start) * 1000
         
         return OCRResult(

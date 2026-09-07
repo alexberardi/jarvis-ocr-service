@@ -51,6 +51,53 @@ The orientation fix is worth most to easyocr (+26 points) and is the difference 
 working and not for tesseract. Apple Vision and rapidocr detect text orientation
 themselves and barely notice.
 
+## Linux + CUDA (added 2026-09-03)
+
+**Host:** Arch Linux, RTX 3080 Ti (12GB), rapidocr in the service container.
+**Corpus:** the same 5 upright images. Latency only — `ground_truth.json` is not
+committed, so recall could not be re-scored. It should not move anyway: same
+models, same weights, only the execution provider changes.
+
+| Provider | Warm s/img | Result |
+|---|---:|---|
+| `rapidocr` CUDA | **0.43** | 5/5 |
+| `rapidocr` CPU (in-container) | 1.09–1.98 | 5/5 |
+| `rapidocr` CUDA, GPU contended | — | **0/5, OOM** |
+
+So ~2.5–4.5x from the GPU, on top of rapidocr already being the fastest local
+provider on the M2 numbers above.
+
+**Three things had to be true at once**, and each failed independently first:
+
+1. The container must see the device (`deploy.resources.reservations.devices`).
+2. The provider must ask for it. `easyocr_provider` hardcoded `gpu=False`, and
+   `RapidOCR()` was constructed with no cuda flags — CUDA is per-stage there
+   (`det_use_cuda`, `cls_use_cuda`, `rec_use_cuda`), so all three are needed.
+3. The image must carry a CUDA runtime. `nvidia-container-toolkit` passes the
+   *driver*, not cuBLAS/cuDNN, and `python:3.11-slim` has neither. See
+   `Dockerfile.gpu`.
+
+**`get_available_providers()` is not proof.** With the CUDA libs incomplete,
+`CUDAExecutionProvider` still appears in that list while `InferenceSession`
+silently falls back to CPU — measured as 1.113s vs 1.09s, i.e. no difference,
+because both runs were CPU. Only creating a real session surfaces it:
+
+```python
+ort.InferenceSession(model, providers=["CUDAExecutionProvider"]).get_providers()
+```
+
+The missing library was `libnvrtc.so.12`; `cusparse`, `cusolver` and `nvjitlink`
+are needed too, and omitting any one produces the same silent fallback.
+
+**GPU is opt-in, not default.** rapidocr hardcodes
+`arena_extend_strategy=kNextPowerOfTwo` and `cudnn_conv_algo_search=EXHAUSTIVE`,
+neither configurable, so it allocates greedily. On the dev box —
+jarvis-llm-proxy-api holding ~6.2GB and whisper ~0.9GB of the 12GB card — every
+image failed with an OOM *on a 5.6MB buffer*. Peak requirement measured at
+~1.6GB including context; leave real headroom above that. The overlay is named
+`docker-compose.gpu-optin.yaml` precisely so `./jarvis` does not apply it
+automatically on any NVIDIA host.
+
 ## Three bugs found
 
 **1. `apple_vision` could never succeed.** PyObjC's `performRequests_error_` has an
@@ -78,7 +125,7 @@ silently fell through to easyocr: 18s, 14GB, 43.5% recall. The EXIF fix masks th
 *rotated* photos, because re-encoding happens to flatten MPO to JPEG; a photo needing no
 rotation is returned byte-for-byte unchanged by design and still breaks.
 
-All three are fixed with regression tests. Suite: 575 passing.
+All three are fixed with regression tests (commit d509240). Suite: 509 passing.
 
 ## Recommendations
 

@@ -4,20 +4,38 @@ import io
 import time
 from typing import List, Optional
 from PIL import Image
-import pytesseract
+
+# Guarded like every other provider. app/providers/__init__.py imports all of
+# them eagerly, so a bare `import pytesseract` made this package unimportable on
+# any host that does not install it -- which took down provider_manager, and with
+# it the whole worker, on the Mac that runs Apple Vision alone.
+try:
+    import pytesseract
+
+    PYTESSERACT_AVAILABLE = True
+except ImportError:
+    pytesseract = None
+    PYTESSERACT_AVAILABLE = False
 
 from app.providers.base import OCRProvider, OCRResult, TextBlock
 
 
 class TesseractProvider(OCRProvider):
-    """Tesseract OCR provider (mandatory, always available)."""
+    """Tesseract OCR provider.
+
+    Was described as "mandatory, always available". It is neither: the binary can
+    be absent, and on a macOS host that exists only to run Apple Vision the
+    Python wrapper is not installed either.
+    """
     
     @property
     def name(self) -> str:
         return "tesseract"
     
     def is_available(self) -> bool:
-        """Tesseract is always available (mandatory provider)."""
+        """True only when both the wrapper and the tesseract binary are present."""
+        if not PYTESSERACT_AVAILABLE:
+            return False
         try:
             # Quick check if tesseract is installed
             pytesseract.get_tesseract_version()
@@ -33,6 +51,9 @@ class TesseractProvider(OCRProvider):
         mode: str = "document"
     ) -> OCRResult:
         """Process image with Tesseract."""
+        if not PYTESSERACT_AVAILABLE:
+            raise RuntimeError("Tesseract is not available (pytesseract is not installed)")
+
         start = time.time()
         
         # Load image.

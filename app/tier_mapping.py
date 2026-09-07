@@ -14,15 +14,30 @@ TIER_TO_PROVIDER = {
 # Reverse mapping
 PROVIDER_TO_TIER = {v: k for k, v in TIER_TO_PROVIDER.items()}
 
-# Default tier order (per PRD)
+# Default tier order.
+#
+# Ordered by measured ingredient-line recall per unit of latency, not by the
+# original PRD's guess — see benchmarks/ocr-providers/BENCHMARK.md. The previous
+# order put easyocr (43.5% recall, 18s/img, 14GB peak RSS) second and
+# apple_vision (100%, 1.6s) fifth, behind two providers that could not finish the
+# corpus at all.
+#
+# apple_vision leads where it exists; it is macOS-only and disabled under Docker,
+# so on Linux the chain effectively starts at rapidocr. Availability filtering
+# happens at call time, so listing it first costs nothing elsewhere.
+#
+# easyocr and paddleocr are kept last rather than deleted: both are disabled by
+# default, and removing them here would silently neuter OCR_ENABLE_* for anyone
+# who turns one on deliberately. Neither should be reached by `auto` ahead of the
+# providers above it.
 DEFAULT_TIER_ORDER = [
-    "tesseract",
-    "easyocr",
-    "paddleocr",
-    "rapidocr",
     "apple_vision",
+    "rapidocr",
+    "tesseract",
     "llm_local",
-    "llm_cloud"
+    "llm_cloud",
+    "paddleocr",
+    "easyocr",
 ]
 
 

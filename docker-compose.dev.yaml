@@ -10,6 +10,8 @@ services:
     environment:
       - JARVIS_CONFIG_URL=http://host.docker.internal:7700
       - JARVIS_CONFIG_URL_STYLE=dockerized
+      # In a container, so Redis is on the host, not on localhost.
+      - REDIS_HOST=${DOCKER_HOST_ALIAS:-host.docker.internal}
     extra_hosts:
       - "${DOCKER_HOST_ALIAS:-host.docker.internal}:host-gateway"
     volumes:
@@ -19,6 +21,38 @@ services:
     command: >
       sh -c "pip install -q -e /app/jarvis-config-client -e /app/jarvis-settings-client &&
              python -m uvicorn app.main:app --host 0.0.0.0 --port 7031 --reload"
+
+  # Consumes jarvis.ocr.jobs (worker.py, the same entrypoint run-worker.sh and
+  # the launchd agent use on macOS). Separate from the API because it is a
+  # blocking BRPOP loop, and because OCR of a multi-page recipe would otherwise
+  # tie up a request worker for the duration.
+  #
+  # This service is the only thing that was missing on Linux: worker.py has
+  # existed since the queue-flow PRD landed and is deployed on macOS via
+  # scripts/launchd/com.jarvis.ocr.worker.plist -- there was simply no compose
+  # service for it here, so the queue had no consumer in this environment.
+  ocr-worker:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - JARVIS_CONFIG_URL=http://host.docker.internal:7700
+      - JARVIS_CONFIG_URL_STYLE=dockerized
+      # In a container, so Redis and MinIO are on the host, not on localhost.
+      - REDIS_HOST=${DOCKER_HOST_ALIAS:-host.docker.internal}
+      # Its own queue, not the shared one: recipes fans every image out to all
+      # OCR hosts, so a shared queue would mean they race and only one reads it.
+      - OCR_QUEUE_NAME=jarvis.ocr.jobs.linux
+    extra_hosts:
+      - "${DOCKER_HOST_ALIAS:-host.docker.internal}:host-gateway"
+    volumes:
+      - .:/app
+      - ../jarvis-config-client:/app/jarvis-config-client
+      - ../jarvis-settings-client:/app/jarvis-settings-client
+    command: >
+      sh -c "pip install -q -e /app/jarvis-config-client -e /app/jarvis-settings-client &&
+             python worker.py"
+    restart: unless-stopped
 
   postgres:
     profiles: ["standalone"]

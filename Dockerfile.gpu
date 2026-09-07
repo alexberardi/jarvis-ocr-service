@@ -1,0 +1,82 @@
+# GPU variant: identical to the default image, except onnxruntime is swapped for
+# onnxruntime-gpu so rapidocr's three ONNX sessions can use CUDA.
+#
+# Build:  docker build -f Dockerfile.gpu -t jarvis-ocr-service:gpu .
+# Run:    docker compose -f docker-compose.dev.yaml -f docker-compose.gpu.yaml up -d
+#         (./jarvis does this automatically on an NVIDIA host — jarvis:409)
+#
+# Requires nvidia-container-toolkit on the host. On Apple Silicon, or any host
+# without CUDA, keep using the default Dockerfile — this image's onnxruntime-gpu
+# has no CPU fallback path worth having and the wheel is far larger.
+#
+# Why a separate image rather than a line in requirements.txt: onnxruntime and
+# onnxruntime-gpu install the same `onnxruntime` module and CONFLICT. Having both
+# in one requirements file leaves whichever pip resolved last on the path, which
+# is exactly the failure this is meant to prevent — det_use_cuda=True is accepted
+# and silently ignored when the CPU wheel wins, so the GPU looks attached and
+# does nothing.
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y \
+    git \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# rapidocr-onnxruntime depends on the CPU wheel, so it arrives with the line
+# above. Remove it before installing the CUDA build: pip will not do this for
+# you, and a leftover CPU onnxruntime silently wins the import.
+#
+# Pinned to a CUDA 12 / cuDNN 9 build (1.20.1 does not exist; 1.20.0 / 1.20.2 do). onnxruntime-gpu 1.23+ targets CUDA 13,
+# which fails at load with "libcublasLt.so.13: cannot open shared object file"
+# and silently falls back to CPU — the exact symptom this image exists to avoid.
+#
+# The CUDA runtime libraries come from pip rather than an nvidia/cuda base image:
+# nvidia-container-toolkit passes through the *driver*, not cuBLAS/cuDNN, and the
+# python:3.11-slim base has neither. Pulling the wheels keeps this image close to
+# the CPU one instead of swapping in a ~2GB CUDA base and rebuilding Python on
+# top of it.
+RUN pip uninstall -y onnxruntime \
+    && pip install --no-cache-dir \
+        "onnxruntime-gpu==1.20.2" \
+        nvidia-cuda-runtime-cu12 \
+        nvidia-cuda-nvrtc-cu12 \
+        nvidia-cublas-cu12 \
+        nvidia-cudnn-cu12 \
+        nvidia-cufft-cu12 \
+        nvidia-curand-cu12 \
+        nvidia-cusparse-cu12 \
+        nvidia-cusolver-cu12 \
+        nvidia-nvjitlink-cu12
+
+# Put the pip-installed CUDA libs on the loader path.
+#
+# ldconfig rather than LD_LIBRARY_PATH: it applies to every process in the image
+# without needing the env var propagated, and globbing the directories means a
+# new nvidia-* wheel does not silently go missing from a hand-maintained list.
+#
+# The set above is not optional trimming. onnxruntime dlopen()s
+# libonnxruntime_providers_cuda.so, which pulls libnvrtc / libcusparse /
+# libcusolver transitively; omitting any one of them makes the CUDA provider fail
+# to load. Critically, it still appears in get_available_providers() when it
+# does, and InferenceSession silently falls back to CPU — so the failure looks
+# exactly like "the GPU isn't helping" rather than an error. rapidocr's
+# _verify_providers only warns. Verify with a real InferenceSession, never with
+# get_available_providers().
+RUN python -c "import site, pathlib; base = pathlib.Path(site.getsitepackages()[0]) / 'nvidia'; print('\n'.join(str(p) for p in sorted(base.glob('*/lib'))))" \
+        > /etc/ld.so.conf.d/nvidia-pip.conf \
+    && ldconfig \
+    && ldconfig -p | grep -q libnvrtc.so.12
+
+COPY app/ ./app/
+
+EXPOSE 7031
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7031"]

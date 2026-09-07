@@ -372,3 +372,57 @@ class TestPublishMessage:
             result = qc.publish_message("test.queue", {"data": 1}, to_back=True)
         assert result is True
         mock_enqueue.assert_called_once_with("test.queue", {"data": 1}, True)
+
+
+class TestOcrCompletionRouting:
+    """Where an OCR completion actually goes.
+
+    The recipes service consumes jarvis.recipes.jobs with an RQ worker, which
+    reads the key `rq:queue:jarvis.recipes.jobs`. A raw LPUSH onto a list of the
+    bare name is a different key that nothing reads -- and that is exactly what
+    happened for every image import: `rq` was in pyproject.toml but not in
+    requirements.txt, so RQ_AVAILABLE was False in the built image, the routing
+    condition fell through, and completions piled up in a list nobody consumed.
+    Neither service logged an error; the app just timed out.
+    """
+
+    def test_a_completion_is_routed_through_rq(self):
+        from app.queue_client import QueueClient
+
+        client = QueueClient()
+        with patch.object(client, "_enqueue_with_rq", return_value=True) as rq_path:
+            assert client.enqueue(
+                "jarvis.recipes.jobs", {"job_type": "ocr.completed", "job_id": "j1"}
+            )
+
+        rq_path.assert_called_once()
+
+    def test_a_missing_rq_dependency_fails_loudly_instead_of_lpushing(self):
+        # The regression: reporting success after writing somewhere nothing reads
+        # is worse than failing, because it looks like the next service's fault.
+        from app.queue_client import QueueClient
+
+        client = QueueClient()
+        raw = MagicMock()
+        with patch("app.queue_client.RQ_AVAILABLE", False), patch.object(
+            client, "_get_client", return_value=raw
+        ):
+            assert (
+                client.enqueue(
+                    "jarvis.recipes.jobs", {"job_type": "ocr.completed", "job_id": "j1"}
+                )
+                is False
+            )
+
+        raw.lpush.assert_not_called()
+        raw.rpush.assert_not_called()
+
+    def test_other_queues_still_use_a_raw_push(self):
+        from app.queue_client import QueueClient
+
+        client = QueueClient()
+        raw = MagicMock()
+        with patch.object(client, "_get_client", return_value=raw):
+            assert client.enqueue("some.other.queue", {"job_type": "whatever"})
+
+        raw.lpush.assert_called_once()

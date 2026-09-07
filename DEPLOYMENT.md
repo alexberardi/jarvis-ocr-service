@@ -247,3 +247,47 @@ tail -f logs/service.log
 tail -f logs/worker.log
 ```
 
+## macOS host (Apple Vision)
+
+Apple Vision is the only engine here that reads handwriting; tesseract and
+rapidocr are printed-text engines and return mush on cursive. A Mac running
+`worker.py` consumes `jarvis.ocr.jobs` from the Linux Redis and replies via RQ —
+the API stays on Linux, this host is a worker only.
+
+```bash
+# On the Mac. python3.11+ — pyobjc has no wheels for the system 3.9 and its
+# source will not compile against a current macOS SDK.
+python3.11 -m venv .venv
+.venv/bin/pip install "pyobjc-framework-Vision>=10.1,<12.0" \
+    pillow numpy redis "rq>=1.15.1,<3.0.0" boto3 httpx requests pydantic python-dotenv
+./deploy-launchd.sh          # or bootstrap com.jarvis.ocr.worker alone
+```
+
+`.env` needs, at minimum:
+
+```
+OCR_ENABLE_APPLE_VISION=true     # defaults to FALSE; without it the provider is never built
+OCR_ENABLED_TIERS=apple_vision   # get_tier_order() filters to enabled tiers, so it must be listed too
+REDIS_HOST=<linux box>           # and S3_ENDPOINT_URL, for fetching the images
+```
+
+Both settings are required. Listing the tier without the flag, or the flag
+without the tier, silently yields no Apple Vision.
+
+### Local Network permission
+
+**This will bite you.** macOS 15+ gates LAN access per binary. Homebrew's Python
+is adhoc-signed, so its connections to a Redis or MinIO on the same subnet fail
+with `[Errno 65] No route to host` — which reads as a routing or firewall fault
+and is neither. `nc` and `/usr/bin/python3` are Apple-signed and pre-approved, so
+they connect fine and make the diagnosis confusing.
+
+Fix it once, at the console: **System Settings → Privacy & Security → Local
+Network**, and enable Python. The entry appears after something has tried; the
+LaunchAgent retries every 10s, so it will be there.
+
+To confirm from a shell:
+
+```bash
+.venv/bin/python -c "import socket;socket.create_connection(('<linux box>',6379),4)"
+```
