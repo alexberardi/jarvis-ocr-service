@@ -39,7 +39,20 @@ class RapidOCRProvider(OCRProvider):
 
         if not self._initialized:
             from rapidocr_onnxruntime import RapidOCR
-            self._ocr = RapidOCR()
+
+            from app.config import config
+
+            # CUDA is per-stage in RapidOCR (detection, classification,
+            # recognition are three separate ONNX sessions), so all three have to
+            # be asked for or the pipeline still lands on CPU. Requires
+            # onnxruntime-gpu; with plain onnxruntime installed these flags are
+            # accepted and quietly ignored.
+            use_cuda = config.OCR_USE_GPU
+            self._ocr = RapidOCR(
+                det_use_cuda=use_cuda,
+                cls_use_cuda=use_cuda,
+                rec_use_cuda=use_cuda,
+            )
             self._initialized = True
 
     @property
@@ -106,7 +119,14 @@ class RapidOCRProvider(OCRProvider):
                         confidence=float(confidence)
                     ))
 
-        full_text = " ".join(text_parts)
+        # Newline, not space. Each text_part is one DETECTED LINE, and joining
+        # them with spaces collapses a recipe into a single run-on line: the
+        # ingredient list stops being a list. Downstream consumers read that
+        # structure -- jarvis-recipes-server's quality gate hard-fails on
+        # line_count < 10, so every image OCR'd by a block-based provider was
+        # rejected as unreadable no matter how clean the scan was. Tesseract
+        # already returns line-separated page text; this makes the rest agree.
+        full_text = "\n".join(text_parts)
         duration_ms = (time.time() - start) * 1000
 
         return OCRResult(

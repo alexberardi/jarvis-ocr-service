@@ -37,6 +37,13 @@ class Config:
     OCR_LOG_LEVEL: str = os.getenv("OCR_LOG_LEVEL", "info").upper()
     
     # Provider flags
+    # GPU acceleration for the learned providers (easyocr, rapidocr, paddleocr).
+    # Off by default: it requires BOTH a GPU-visible container (see the deploy
+    # block in docker-compose) AND GPU builds of the runtime
+    # (onnxruntime-gpu for rapidocr, a CUDA torch for easyocr). Turning it on
+    # without those makes the provider fall back to CPU, silently in most cases.
+    OCR_USE_GPU: bool = os.getenv("OCR_USE_GPU", "false").lower() == "true"
+
     OCR_ENABLE_EASYOCR: bool = os.getenv("OCR_ENABLE_EASYOCR", "false").lower() == "true"
     OCR_ENABLE_PADDLEOCR: bool = os.getenv("OCR_ENABLE_PADDLEOCR", "false").lower() == "true"
     OCR_ENABLE_RAPIDOCR: bool = os.getenv("OCR_ENABLE_RAPIDOCR", "false").lower() == "true"
@@ -54,6 +61,11 @@ class Config:
     JARVIS_APP_KEY: str = os.getenv("JARVIS_APP_KEY", "")
     
     # Redis config
+    # Which queue this host consumes. Defaults to the shared name so a
+    # single-host install is unchanged; a fan-out install gives each host its own
+    # (jarvis.ocr.jobs.mac, jarvis.ocr.jobs.linux) so that BOTH see every image
+    # rather than racing to pop it.
+    OCR_QUEUE_NAME: str = os.getenv("OCR_QUEUE_NAME", "jarvis.ocr.jobs")
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD")

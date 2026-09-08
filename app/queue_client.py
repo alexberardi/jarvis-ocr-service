@@ -33,7 +33,9 @@ class QueueClient:
     def __init__(self):
         self.host = config.REDIS_HOST
         self.port = config.REDIS_PORT
-        self.queue_name = "jarvis.ocr.jobs"  # Queue name per PRD
+        # Per-host, so a fan-out install can have every host OCR the same image.
+        # Defaults to the shared queue name (see config.OCR_QUEUE_NAME).
+        self.queue_name = config.OCR_QUEUE_NAME
         self.jobs_key_prefix = "ocr_job:"  # Prefix for job status keys
         self._client: Optional[Any] = None
     
@@ -306,11 +308,17 @@ class QueueClient:
         Returns:
             True if enqueued successfully, False otherwise
         """
-        # Check if this is an OCR completion message going to recipes queue
-        # If so, use RQ's enqueue method as required by the recipes service
-        if (queue_name == "jarvis.recipes.jobs" and 
-            message.get("job_type") == "ocr.completed" and 
-            RQ_AVAILABLE):
+        # OCR completions going to the recipes queue MUST go through RQ: that
+        # service consumes jarvis.recipes.jobs with an RQ worker, which reads
+        # rq:queue:jarvis.recipes.jobs, not a list of the bare name.
+        #
+        # RQ_AVAILABLE is deliberately NOT part of this condition. It used to be,
+        # and the effect was that a missing `rq` dependency silently routed the
+        # completion to a raw LPUSH nobody consumes: the job never errored, it
+        # just never finished, and the app timed out with a clean log on both
+        # sides. Route on destination alone and let _enqueue_with_rq say what is
+        # wrong.
+        if queue_name == "jarvis.recipes.jobs" and message.get("job_type") == "ocr.completed":
             return self._enqueue_with_rq(queue_name, message)
         
         # For all other queues, use raw Redis commands

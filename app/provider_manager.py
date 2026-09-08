@@ -36,6 +36,20 @@ except ImportError:
     LLMProxyVisionProvider = None
     LLMProxyCloudProvider = None
 
+def _auto_provider_order() -> list[str]:
+    """Provider names for `auto`, in fallback order.
+
+    Single source of truth is tier_mapping.DEFAULT_TIER_ORDER. This order was
+    previously copy-pasted into three places in this module plus declared in
+    tier_mapping, under two different vocabularies for the LLM tiers -- and they
+    had drifted. Availability filtering happens at the call site; this only
+    decides sequence.
+    """
+    from app.tier_mapping import DEFAULT_TIER_ORDER, tier_to_provider
+
+    return [tier_to_provider(t) for t in DEFAULT_TIER_ORDER]
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -131,10 +145,11 @@ class ProviderManager:
             ValueError: If provider is not available
         """
         if provider_name == "auto":
-            # Auto resolution order: Tesseract → EasyOCR → PaddleOCR → RapidOCR → Apple Vision → LLM Proxy Vision → LLM Proxy Cloud
-            # (Ordered by processing cost/power, cheapest/fastest first)
+            # Auto resolution order comes from tier_mapping.DEFAULT_TIER_ORDER,
+            # ordered by measured recall per unit of latency (see
+            # benchmarks/ocr-providers/BENCHMARK.md).
             # Note: Validation guardrails will be applied during processing
-            for name in ["tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]:
+            for name in _auto_provider_order():
                 if name in self.providers:
                     provider = self.providers[name]
                     if provider.is_available():
@@ -279,7 +294,7 @@ IMPORTANT INSTRUCTIONS:
         
         # If auto mode, try providers in order with validation
         if provider_name == "auto":
-            provider_order = ["tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]
+            provider_order = _auto_provider_order()
             
             for name in provider_order:
                 if name not in self.providers:
@@ -398,7 +413,7 @@ IMPORTANT INSTRUCTIONS:
         # Select provider and process batch
         if provider_name == "auto":
             # Try providers in order with validation (like single image mode)
-            provider_order = ["tesseract", "easyocr", "paddleocr", "rapidocr", "apple_vision", "llm_proxy_vision", "llm_proxy_cloud"]
+            provider_order = _auto_provider_order()
             
             for name in provider_order:
                 if name not in self.providers:

@@ -13,10 +13,22 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}Jarvis OCR Worker - Native Runner${NC}"
 echo ""
 
+# A local .venv takes precedence over Poetry.
+#
+# Hosts that run one provider do not want Poetry's full dependency set: the Mac
+# mini exists to run Apple Vision and has no use for fastapi, tesseract or
+# rapidocr. It also has no Poetry, and this script used to exit 1 there, which
+# made the launchd agent crash-loop with a message about installing a build tool.
+if [ -x ".venv/bin/python" ]; then
+    echo -e "${GREEN}Using .venv${NC}"
+    exec .venv/bin/python worker.py
+fi
+
 # Check if Poetry is installed
 if ! command -v poetry &> /dev/null; then
-    echo -e "${RED}Error: Poetry is not installed${NC}"
-    echo "Install Poetry: curl -sSL https://install.python-poetry.org | python3 -"
+    echo -e "${RED}Error: no .venv found and Poetry is not installed${NC}"
+    echo "Either create a venv:  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+    echo "Or install Poetry:     curl -sSL https://install.python-poetry.org | python3 -"
     exit 1
 fi
 

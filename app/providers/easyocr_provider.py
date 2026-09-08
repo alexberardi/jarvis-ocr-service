@@ -28,8 +28,13 @@ class EasyOCRProvider(OCRProvider):
             raise RuntimeError("EasyOCR is not installed")
         
         if not self._initialized:
-            # Initialize with English by default, can be extended
-            self._reader = easyocr.Reader(['en'], gpu=False)
+            # Initialize with English by default, can be extended.
+            # gpu was hardcoded False here, which silently pinned this provider to
+            # CPU even on a GPU host — EasyOCR is a torch model and the difference
+            # is roughly an order of magnitude per image.
+            from app.config import config
+
+            self._reader = easyocr.Reader(['en'], gpu=config.OCR_USE_GPU)
             self._initialized = True
     
     @property
@@ -93,7 +98,14 @@ class EasyOCRProvider(OCRProvider):
                     confidence=float(confidence)
                 ))
         
-        full_text = " ".join(text_parts)
+        # Newline, not space. Each text_part is one DETECTED LINE, and joining
+        # them with spaces collapses a recipe into a single run-on line: the
+        # ingredient list stops being a list. Downstream consumers read that
+        # structure -- jarvis-recipes-server's quality gate hard-fails on
+        # line_count < 10, so every image OCR'd by a block-based provider was
+        # rejected as unreadable no matter how clean the scan was. Tesseract
+        # already returns line-separated page text; this makes the rest agree.
+        full_text = "\n".join(text_parts)
         duration_ms = (time.time() - start) * 1000
         
         return OCRResult(
