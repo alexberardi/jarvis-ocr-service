@@ -7,7 +7,7 @@ pytesseract==0.3.13
 numpy==2.0.2
 httpx==0.28.1
 python-dotenv==1.2.1
-redis==5.0.1
+redis==7.0.1
 # Required, not optional: the OCR completion goes back to jarvis.recipes.jobs,
 # which the recipes service consumes with an RQ worker. Without rq installed,
 # queue_client falls through to a raw LPUSH onto a plain list of the same name
