@@ -25,6 +25,9 @@ COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./alembic.ini
 
+# The sibling worker container runs this image with `python worker.py`
+COPY worker.py ./worker.py
+
 # Expose port
 EXPOSE 7031
 
