@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db.models import Base
 from app.db.session import MIGRATIONS_DATABASE_URL
+from app.db.bootstrap import ensure_database
 
 config = context.config
 
@@ -40,6 +41,9 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
+    # The database may not exist yet: init-db.sh only runs on a first boot, so a
+    # service added to an existing install has to provision its own.
+    ensure_database(MIGRATIONS_DATABASE_URL)
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

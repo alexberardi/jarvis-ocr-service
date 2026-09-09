@@ -21,9 +21,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 
+# Migrations run at startup, so they have to ship with the image
+COPY alembic/ ./alembic/
+COPY alembic.ini ./alembic.ini
+
 # Expose port
 EXPOSE 7031
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7031"]
+# Run the application. Migrations first, matching every other DB-backed
+# service; alembic also provisions the database if it does not exist yet.
+CMD ["bash", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 7031"]
 
