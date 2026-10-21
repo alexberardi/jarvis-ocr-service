@@ -1,5 +1,10 @@
 # Jarvis OCR Service
 
+> [!WARNING]
+> **Deprecated: replaced by jarvisd.** This service is part of the old multi-container Jarvis Automation stack. Its features are now built into jarvisd, the single-program server in [jarvis-server](https://github.com/alexberardi/jarvis-server). New installs: [installer.jarvisautomation.io](https://installer.jarvisautomation.io). Moving an existing install: [Migrating from the Docker install](https://docs.jarvisautomation.dev/install/migrating-from-docker/).
+>
+> The old stack stays supported, with fixes only, until jarvisd v0.1.0. This repository will be archived after that; published images and packages stay available for existing installs.
+
 A FastAPI-based microservice for Optical Character Recognition (OCR) with pluggable backends.
 
 ## Features
